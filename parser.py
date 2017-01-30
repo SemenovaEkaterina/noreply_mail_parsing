@@ -47,6 +47,7 @@ class HTML(HTMLParser):
         self.text += data
 
 
+
 quote_pattern = re.compile(r'[^\n]+ написала?.?вам.?сообщение.?в.+Электронном.+журнале.+школы.*№.+:.*'
                              r'Это.+автоматическое.+уведомление,.+и.+на.+него.+не.+следует.+отвечать\..+'
                              r'Чтобы.+ответить.+отправителю,.+войдите.+в.+Электронный.+журнал.+https://.+\.eljur\.ru',
@@ -86,6 +87,7 @@ def parse(text):
     for pattern in pre_patterns:
         text = pattern[0].sub(pattern[1], text)
 
+    # выделить цитату в отдельную строку
     new_text = re.sub(quote_pattern, '\n', text)
     if len(new_text) == len(text):
         return text, 1
@@ -93,5 +95,7 @@ def parse(text):
     text = new_text
     for pattern in post_patterns:
         text = re.sub(pattern[0], pattern[1], text)
+
+    # убрать пустые <blockquote> из разметки
 
     return text, 0
