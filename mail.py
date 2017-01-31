@@ -5,6 +5,7 @@ import os
 import sys
 import re
 import header_parser
+import signal
 imaplib._MAXLINE = 2000000
 
 mail = imaplib.IMAP4_SSL('imap.gmail.com')
@@ -109,6 +110,9 @@ LIMIT_EXCEED_TEXT = [
 # SPAM
 
 
+def signal_handler(signum, frame):
+    raise Exception("Time Out")
+
 
 try:
     mail.login(os.environ.get('EMAIL'), os.environ.get('PASSWORD'))
@@ -159,8 +163,8 @@ if len(data) > 0:
 else:
     message_ids = []
 
-min_id = os.environ.get('MIN_ID', 144106)
-max_id = os.environ.get('MAX_ID', 145000)
+min_id = os.environ.get('MIN_ID', 142572)
+max_id = os.environ.get('MAX_ID', 142574)
 
 for i in message_ids:
 
@@ -391,7 +395,14 @@ for i in message_ids:
                     if part.get_content_type() == 'text/plain' and attachment_part == False:
                         decoded_part = '<pre>' + decoded_part.strip() + '</pre>'
                         parts.append(decoded_part.strip())
-                        parsed_plain  = parser.parse(decoded_part)
+                        signal.signal(signal.SIGALRM, signal_handler)
+                        signal.alarm(10)
+                        try:
+                            parsed_plain  = parser.parse(decoded_part)
+                        except Exception:
+                            print("Error: Time Out")
+                            continue
+
 
                 except TypeError:
                     print('FAIL: TypeError')
@@ -403,7 +414,13 @@ for i in message_ids:
                 try:
                     if part.get_content_type() == 'text/html' and attachment_part == False:
                         parts.append(decoded_part)
-                        parsed_html = parser.parse_html(decoded_part)
+                        signal.signal(signal.SIGALRM, signal_handler)
+                        signal.alarm(10)
+                        try:
+                            parsed_html = parser.parse_html(decoded_part)
+                        except Exception:
+                            print("Error: Time Out")
+                            continue
                 except TypeError:
                     print('FAIL: TypeError')
                     try:
