@@ -1,0 +1,10 @@
+.affix-sidebar {
+    position: fixed;
+    top:50px;
+    left: 15px;
+    width:200px;
+}
+
+.affix-table {
+    left: 230px;
+}

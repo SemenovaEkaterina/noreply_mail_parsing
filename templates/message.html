@@ -1,0 +1,71 @@
+{% extends "_base.html" %}
+{% block content %}
+    {% csrf_token %}
+    <div class="row">
+    <div class="col-md-10">
+          <h3>From:</h3> {{ message.msg_from }}
+          <hr>
+          <h3>Subject:</h3> {{ message.subject }}
+          <hr>
+          <h3>In-Reply-To:</h3> {{ message.in_reply_to_header }}
+          <hr>
+          <h3>Text:</h3> {{ message.text}}
+          <hr>
+          <h3>Quote:</h3> {{ message.quote }}
+          <hr>
+          <h3>Files:</h3>
+            {% for file in files %}
+                <a href="{{ path }}{{ file.file.name }}" target="_blank">{{ file.file.name }}</a>
+                <br>
+            {% endfor %}
+          <br>
+          <br>
+    </div>
+    <div class="col-md-2">
+          <br>
+        {% if message.status == 0 %}
+          <button type="button" class="btn btn-default mail_parsing-accept btn-success" message_id="{{ message.id }}">
+        {% else %}
+          <button type="button" class="btn btn-default mail_parsing-accept" message_id="{{ message.id }}">
+        {% endif %}
+          <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+          </button>
+        {% if message.status == 1 %}
+          <button type="button" class="btn btn-default mail_parsing-not_accept btn-danger" message_id="{{ message.id }}">
+        {% else %}
+          <button type="button" class="btn btn-default mail_parsing-not_accept" message_id="{{ message.id }}">
+        {% endif %}
+          <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+          </button>
+          <br>
+          <br>
+        {% if prev != -1 %}
+        <form action="{% url 'message' prev %}" class="mail_parsing-button">
+          <button type="submit" class="btn btn-default">
+          <span class="glyphicon glyphicon-menu-left" aria-hidden="true"></span>
+          </button>
+        </form>
+        {% else %}
+          <button type="submit" class="btn btn-default" disabled>
+          <span class="glyphicon glyphicon-menu-left" aria-hidden="true"></span>
+          </button>
+        {% endif %}
+        {% if next != -1 %}
+        <form action="{% url 'message' next %}" class="mail_parsing-button">
+          <button type="submit" class="btn btn-default">
+          <span class="glyphicon glyphicon-menu-right" aria-hidden="true"></span>
+          </button>
+        </form>
+        {% else %}
+          <button type="submit" class="btn btn-default" disabled>
+          <span class="glyphicon glyphicon-menu-right" aria-hidden="true"></span>
+          </button>
+        {% endif %}
+    </div>
+    </div>
+
+    {% load static %}
+    <script type="text/javascript" src="{%  static 'scripts/jquery-3.1.1.min.js' %}"></script>
+    <script type="text/javascript" src="{%  static 'scripts/accept.js' %}"></script>
+
+{% endblock %}

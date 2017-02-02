@@ -1,0 +1,26 @@
+{% extends "_base.html" %}
+{% block content %}
+          <h2>Table</h2>
+          <div class="table-responsive">
+            <table class="table table-condensed">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Email</th>
+                  <th>MailBox is full</th>
+                  <th>spam</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for address in addresses %}
+                <tr>
+                    <td>{{ address.id }}</td>
+                    <td>{{ address.address }}</td>
+                    <td>{{ address.limit_exceed_chance }}</td>
+                    <td>{{ address.detected_spam_chance }}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+{% endblock %}
