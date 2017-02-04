@@ -1,3 +1,17 @@
 .mail_parsing-button {
     display: inline;
 }
+
+pre {
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+}
+
+#pagination_button {
+    display: inline-block;
+    width: 30px;
+    height: 20px;
+}
+

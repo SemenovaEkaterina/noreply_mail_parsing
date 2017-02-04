@@ -1,18 +1,15 @@
 import imaplib
-import mail_parsing.management.commands.parser as parser
+import mail_parsing.management.commands.message_parser as parser
 import email
 import os
 import sys
 import re
-import hashlib
 import mail_parsing.management.commands.header_parser as header_parser
 import signal
 from django.core.management.base import BaseCommand
-from django.core.files.base import ContentFile
-from django.db.models.fields.files import FieldFile
-from django.core.files import File
 from mail_parsing.models import EmailAddress, Message, Attachment
-from noreply_mail_parsing.settings import STATIC_ROOT
+from .connection import make_message_list
+from django.core.files.base import ContentFile
 
 imaplib._MAXLINE = 2000000
 SEARCH_FOLDER = 'Trash'
@@ -94,6 +91,15 @@ LIMIT_EXCEED_TEXT = [
     '552 5.2.3',
     '554-5.7.1', # Access denied            ?
     '554 5.7.1',
+    'Mail quota exceeded',
+]
+
+ADDRESS_FAILED_TEXT = [
+    'Unrouteable address',
+    '550 Addresses failed:',
+    'Mailbox disabled for this recipient',
+    'invalid mailbox',
+    'does not exist',
 ]
 
 # Invalid address:
@@ -111,6 +117,34 @@ LIMIT_EXCEED_TEXT = [
 # '550-5.7.1' # No such user
 # '550 5.7.1'
 # 'account is disabled' #                 ?
+# 'recipient does not have an account'
+
+UNDELIVERED_STATUS = [
+    '5.0.0',
+    '4.4.1', # connection timed out
+    '5.4.4',
+    '5.7.1',
+    '4.4.3',
+    '5.4.6', # mail loops back to myself
+    '5.2.1',
+    '4.0.0', # mail receiving disabled
+    '4.1.1', # address rejected: unverified address
+    '4.7.1', # You are not allowed to connect
+    '4.4.2', # lost connection
+    '5.7.606', # Access denied, banned sending IP
+    '5.5.0', # user not found
+    '4.4.7', # No recipients
+    '5.1.2', # recipient address is not a valid
+    '5.4.1', # Recipient address rejected: Access denied
+    '5.5.4',  # Error: send AUTH command first
+]
+
+OVER_QUOTA_STATUS = [
+    '4.2.2',
+    '5.2.2',
+    '5.1.1', # account is full
+    '5.7.0', # maildir over quota
+]
 
 # SPAM
 
@@ -122,180 +156,194 @@ def parse_timeout_signal_handler(signum, frame):
 class Command(BaseCommand):
     def handle(self, *args, **options):
 
-        mail = imaplib.IMAP4_SSL('imap.gmail.com')
+        # message_ids, mail = make_message_list('UNSEEN')
+        message_ids, mail = make_message_list('ALL')
 
-        try:
-            mail.login(os.environ.get('EMAIL'), os.environ.get('PASSWORD'))
-        except imaplib.IMAP4.error:
-            sys.exit(1)
+        print(len(message_ids))
 
-        try:
-            res, folders = mail.list()
-        except imaplib.IMAP4.error:
-            sys.exit(1)
-        print('OK: received folders')
-
-        found_folder = False
-        for folder in folders:
-            if SEARCH_FOLDER in str(folder):
-                found_folder = folder
-
-        if found_folder is not None:
-            print('OK: found folder')
-        else:
-            print('ERROR: failed to find a folder')
-            sys.exit(1)
-
-        folder_name = [x for x in str(found_folder).split('"') if 'Gmail' in x].pop()
-
-        # "INBOX"
-        # folder_name = [x for x in str(found_folder).split('"')][-2]
-
-        try:
-            res, sel_data = mail.select(folder_name)
-        except imaplib.IMAP4.error:
-            print('ERROR: failed to select a folder')
-            sys.exit(1)
-
-        print('OK: selected folder, message counter:', int(sel_data.pop()))
-
-        try:
-            res, data = mail.search(None, 'ALL')
-        except imaplib.IMAP4.error:
-            sys.exit(1)
-
-        print('OK: received a list of messages')
-
-        if len(data) > 0:
-            message_ids = data.pop().split()
-        else:
-            message_ids = []
-
-        min_id = os.environ.get('MIN_ID', 174097)
-        max_id = os.environ.get('MAX_ID', 174098)
+        min_id = os.environ.get('MIN_ID', 171263)
+        max_id = os.environ.get('MAX_ID', 171264)
 
         for i in message_ids:
 
-            msg_num = i.decode()
-
-            if int(msg_num) <= int(min_id) or int(msg_num) > int(max_id):
-                continue
-
-            print()
-            print(i)
-
             try:
-                res, encoded_message = mail.fetch(i, '(RFC822)')
-            except imaplib.IMAP4.error:
-                sys.exit(1)
+                msg_num = i.decode()
 
-            try:
-                message = email.message_from_bytes(encoded_message[0][1])
-            except email.errors.MessageParseError:
-                pass
+                if int(msg_num) <= int(min_id) or int(msg_num) > int(max_id):
+                    continue
 
-            '''
-            r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-            r.write(message.as_bytes().decode(encoding='UTF-8'))
-            '''
+                # print()
+                # print(i)
 
-            go_next = False
+                try:
+                    res, encoded_message = mail.fetch(i, '(RFC822)')
+                except imaplib.IMAP4.error:
+                    sys.exit(1)
 
-            invalid_address = 0
-            autoreply = 0
+                try:
+                    message = email.message_from_bytes(encoded_message[0][1])
+                except email.errors.MessageParseError:
+                    mail.store(i, '+FLAGS', '\\UNSEEN')
+                    continue
 
-            # Autoreply
-            # Ex:
-            # Reply-To: 123.autoreply@gmail.com
-            # Return-Path: 123.autoreply@gmail.com or MAILER-DAEMON@corp.mail.ru
-            # Errors-To: 123.autoreply@gmail.com
+                '''
+                r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
+                r.write(message.as_bytes().decode(encoding='UTF-8'))
+                '''
 
-            if header_parser.header_parse(message, 'Reply-To') is not None:
-                if 'autoreply' in header_parser.header_parse(message, 'Reply-To').lower():
-                    autoreply += 0.2
+                go_next = False
 
-            if header_parser.header_parse(message, 'Return-Path') is not None:
-                for wrong_from in WRONG_FROM_CONTAINS:
-                    if wrong_from in header_parser.header_parse(message, 'Return-Path').lower():
+                no_such_user = 0
+                limit_exceed = False
+                autoreply = 0
+
+                # error -> text/plain
+                if message.get_content_type() == 'multipart/report':
+                    no_such_user += 0.2
+                    for param in message.get_params(failobj=[]):
+                        if param[0] == 'report-type' and param[1] == 'delivery-status':
+                            # print('FILTERED T')
+                            no_such_user += 0.2
+
+                    for part in message.walk():
+                        header_content_type = part.get_content_type()
+                        if header_content_type is not None:
+                            if header_content_type.lower() == 'message/delivery-status':
+                                # print('report-part')
+                                payload = part.get_payload(1)
+                                header_status = header_parser.header_parse(payload, 'Status')
+                                # print(header_status)
+                                if header_status in UNDELIVERED_STATUS:
+                                    no_such_user += 0.4
+                                if header_status in OVER_QUOTA_STATUS:
+                                    no_such_user += 0.4
+                                    limit_exceed = True
+
+                                address = header_parser.header_parse(payload, 'Original-Recipient')
+                                if address is not None:
+                                    address = re.sub(r'rfc822; ?', '', address)
+                                    go_next = True
+                                else:
+                                    address = header_parser.header_parse(payload, 'Final-Recipient')
+                                    if address is not None:
+                                        address = re.sub(r'rfc822; ?', '', address)
+                                        go_next = True
+
+                if go_next:
+                    if limit_exceed == True:
+                        limit_exceed_chance = 1
+                    else:
+                        limit_exceed_chance = 0
+                    EmailAddress.objects.create(address=address, limit_exceed_chance=limit_exceed_chance,
+                                                detected_spam_chance=0)
+                    continue
+
+                if header_parser.header_parse(message, 'X-Mailer-Daemon-Error') == 'user_not_found':
+                    header_failed_address = header_parser.header_parse(message, 'X-Failed-Recipients')
+                    if header_failed_address is not None:
+                        no_such_user = True
+                        invalid_address = header_failed_address
+                    else:
+                        header_failed_address = header_parser.header_parse(message, 'X-Mailer-Daemon-Recipients')
+                        if header_failed_address is not None:
+                            no_such_user = True
+                            invalid_address = header_failed_address
+
+                # Autoreply
+                # Ex:
+                # Reply-To: 123.autoreply@gmail.com
+                # Return-Path: 123.autoreply@gmail.com or MAILER-DAEMON@corp.mail.ru
+                # Errors-To: 123.autoreply@gmail.com
+
+                if header_parser.header_parse(message, 'Reply-To') is not None:
+                    if 'autoreply' in header_parser.header_parse(message, 'Reply-To').lower():
                         autoreply += 0.2
-                if 'autoreply' in header_parser.header_parse(message, 'Return-Path').lower():
-                    autoreply += 0.2
 
-            if header_parser.header_parse(message, 'Errors-To') is not None:
-                if 'autoreply' in header_parser.header_parse(message, 'Errors-To'):
-                    autoreply += 0.2
-
-            # error -> text/plain
-            if message.get_content_type() == 'multipart/report':
-                invalid_address += 0.2
-                for param in message.get_params(failobj=[]):
-                    if param[0] == 'report-type' and param[1] == 'delivery-status':
-                        # print('FILTERED T')
-                        invalid_address += 0.2
-
-            # message.__getitem__(): er -> None
-            # Если автоответ, то со оригинального адреса
-            wrong_from_in = False
-            if message['From'] is not None:
-                message_from = header_parser.header_parse(message, 'From')
-                if message_from is not None:
+                if header_parser.header_parse(message, 'Return-Path') is not None:
                     for wrong_from in WRONG_FROM_CONTAINS:
-                        if wrong_from in message_from.lower():
-                            # print('FILTERED F:', message_from)
-                            wrong_from_in = True
-                            invalid_address += 0.4
-                            autoreply += 0.4
-                else:
-                    pass
-
-            # При наборе остальных признаков отличит автоовет
-            if wrong_from_in == False:
-                autoreply += 0.2
-
-            if message['Subject'] is not None:
-                message_subject = header_parser.header_parse(message, 'Subject')
-                if message_subject is not None:
-                    for wrong_subject_part in WRONG_SUBJECTS_CONTAINS:
-                        if wrong_subject_part.lower() in message_subject.lower():
-                            # print('FILTERED S:', message_subject)
-                            invalid_address += 0.4
-                            autoreply += 0.4
-                else:
-                    pass
-
-            for wrong_header_wval in WRONG_HEADERS_VALS:
-                hname, hval = wrong_header_wval
-                if message[hname] is not None:
-                    hfiltered = header_parser.header_parse(message, hname)
-                    if hfiltered is not None:
-                        if hval in hfiltered:
-                            # print('FILTERED H:', hname, ' ==> ', hfiltered)
-                            invalid_address += 0.2
+                        if wrong_from in header_parser.header_parse(message, 'Return-Path').lower():
                             autoreply += 0.2
+                    if 'autoreply' in header_parser.header_parse(message, 'Return-Path').lower():
+                        autoreply += 0.2
 
-            #print(autoreply)
-            #print(invalid_address)
-            if autoreply >= 0.8 and autoreply > invalid_address:
-                go_next = True
+                if header_parser.header_parse(message, 'Errors-To') is not None:
+                    if 'autoreply' in header_parser.header_parse(message, 'Errors-To'):
+                        autoreply += 0.2
 
-            size_limit_exceed = False
+                # message.__getitem__(): er -> None
+                # Если автоответ, то со оригинального адреса
+                wrong_from_in = False
+                if message['From'] is not None:
+                    message_from = header_parser.header_parse(message, 'From')
+                    if message_from is not None:
+                        for wrong_from in WRONG_FROM_CONTAINS:
+                            if wrong_from in message_from.lower():
+                                # print('FILTERED F:', message_from)
+                                wrong_from_in = True
+                                no_such_user += 0.4
+                                autoreply += 0.4
+                    else:
+                        pass
 
-            if invalid_address >= 0.8:
-                for limit_header_wval in LIMIT_EXCEED_HEADERS_VALS:
-                    hname, hval = limit_header_wval
+                # При наборе остальных признаков отличит автоовет
+                if wrong_from_in == False:
+                    autoreply += 0.2
+
+                if message['Subject'] is not None:
+                    message_subject = header_parser.header_parse(message, 'Subject')
+                    if message_subject is not None:
+                        for wrong_subject_part in WRONG_SUBJECTS_CONTAINS:
+                            if wrong_subject_part.lower() in message_subject.lower():
+                                # print('FILTERED S:', message_subject)
+                                no_such_user += 0.4
+                                autoreply += 0.4
+                    else:
+                        pass
+
+                for wrong_header_wval in WRONG_HEADERS_VALS:
+                    hname, hval = wrong_header_wval
                     if message[hname] is not None:
                         hfiltered = header_parser.header_parse(message, hname)
                         if hfiltered is not None:
                             if hval in hfiltered:
-                                size_limit_exceed = True
+                                # print('FILTERED H:', hname, ' ==> ', hfiltered)
+                                no_such_user += 0.2
+                                autoreply += 0.2
 
-                if size_limit_exceed == True:
+                # print(autoreply)
+                # print(invalid_address)
+                if autoreply >= 0.8 and autoreply > no_such_user:
                     go_next = True
 
+                if go_next:
+                    continue
 
-                else:
+                limit_exceed = False
+
+                if no_such_user >= 0.8:
+                    for limit_header_wval in LIMIT_EXCEED_HEADERS_VALS:
+                        hname, hval = limit_header_wval
+                        if message[hname] is not None:
+                            hfiltered = header_parser.header_parse(message, hname)
+                            if hfiltered is not None:
+                                if hval in hfiltered:
+                                    limit_exceed = True
+
+                    header_failed_address = header_parser.header_parse(message, 'X-Failed-Recipients')
+                    if header_failed_address is not None:
+                        address = header_failed_address
+                        if limit_exceed == True:
+                            limit_exceed_chance = 1
+                        else:
+                            limit_exceed_chance = 0
+                        EmailAddress.objects.create(address=address, limit_exceed_chance=limit_exceed_chance,
+                                                    detected_spam_chance=0)
+                        go_next = True
+
+                    if go_next:
+                        continue
+
                     invalid_list = []
-                    address_list = []
 
                     for part in message.walk():
                         payload = part.get_payload(decode=True)
@@ -318,16 +366,13 @@ class Command(BaseCommand):
                                 for text in LIMIT_EXCEED_TEXT:
                                     if text in decoded_part:
                                         size_limit_exceed = True
-                                        go_next = True
                                         break
-
-                                if size_limit_exceed == True:
-                                    break
 
                                 address_list = re.findall(r'[\w\.-]+@[\w\.-]+', decoded_part)
 
                                 for address in address_list:
-                                    address = address.strip('<>')
+                                    # print(address)
+                                    address = address.strip('<>').lower()
                                     daemon_address = False
 
                                     for wrong_from in WRONG_FROM_CONTAINS:
@@ -343,187 +388,212 @@ class Command(BaseCommand):
                         addr_f.write(address + '\n')
                     addr_f.close()
                     '''
-                    EmailAddress.objects.create(address=address, limit_exceed_chance=0, detected_spam_chance=0)
+                    if len(invalid_list) == 1:
+                        if limit_exceed == True:
+                            limit_exceed_chance = 1
+                        else:
+                            limit_exceed_chance = 0
+                        EmailAddress.objects.create(address=address, limit_exceed_chance=limit_exceed_chance,
+                                                    detected_spam_chance=0)
+                    else:
+                        print("ERRROR: not one invalid address in text")
 
                     go_next = True
 
-            if go_next:
-                continue
+                if go_next:
+                    continue
 
-            parts = []
-            parsed_html = None
-            parsed_plain = None
-            message_type = 1
+                parts = []
+                parsed_html = None
+                parsed_plain = None
+                message_type = 1
 
-            in_reply_to_header = header_parser.header_parse(message, 'In-Reply-To')
-            if in_reply_to_header is not None:
-                in_reply_to_header = re.search(r'<.+@eljur.ru>', in_reply_to_header)
+                in_reply_to_header = header_parser.header_parse(message, 'In-Reply-To')
                 if in_reply_to_header is not None:
-                    in_reply_to_header = in_reply_to_header.group()[1:-10]
-                    if in_reply_to_header[3:9] == 'message':
-                        message_type = 0
+                    in_reply_to_header = re.search(r'<.+@eljur.ru>', in_reply_to_header)
+                    if in_reply_to_header is not None:
+                        in_reply_to_header = in_reply_to_header.group()[1:-10]
+                        if in_reply_to_header[3:9] == 'message':
+                            message_type = 0
+                    else:
+                        in_reply_to_header = ''
                 else:
                     in_reply_to_header = ''
-            else:
-                in_reply_to_header = ''
 
-            # message_from is not None!!!
-            message_object = Message(msg_from=message_from, subject=message_subject, in_reply_to_header=in_reply_to_header, type=message_type)
+                try:
+                    original = original = message.__str__()
+                except KeyError:
+                    try:
+                        original = message.as_bytes().decode(encoding='UTF-8')
+                    except:
+                        original = ''
 
-            for part in message.walk():
+                message_object = Message(msg_from=message_from, subject=message_subject,
+                                         in_reply_to_header=in_reply_to_header, type=message_type, original=original)
 
-                payload = part.get_payload(decode=True)
-                if payload is not None:
+                for part in message.walk():
 
-                    charset = part.get_content_charset(failobj=None)
+                    payload = part.get_payload(decode=True)
+                    if payload is not None:
 
-                    if charset is None:
-                        decoded_part = str(payload)
-                    else:
-                        try:
-                            decoded_part = payload.decode(str(charset), "ignore")
-                        except LookupError:
-                            print('FAIL: unknown charset')
-                            decoded_part = payload.decode()
+                        charset = part.get_content_charset(failobj=None)
 
-                    header_content_disposition = header_parser.header_parse(part, 'Content-Disposition')
-
-                    attachment_part = False
-
-                    if part.get_filename() is not None or header_content_disposition == 'attachment':
-                        attachment_part = True
-                        if part.get_filename() is not None:
-                            file_name = email.header.decode_header(part.get_filename())
+                        if charset is None:
+                            decoded_part = str(payload)
                         else:
                             try:
-                                file_format = '.' + part.get_subtype()
-                                print('GET_SUBTYPE: ' + file_format)
-                            except:
-                                file_format = ''
-                            file_name = '1' + file_format
-                        if isinstance(file_name[0][0], str):
-                            #file_path = 'res/html/' + msg_num + '_' + (file_name[0][0])
-                            file_name = file_name[0][0]
-                        else:
-                            try:
-                                #file_path = 'res/html/' + msg_num + '_' + file_name[0][0].decode(file_name[0][1])
-                                file_name = file_name[0][0].decode(file_name[0][1])
-                            except:
+                                decoded_part = payload.decode(str(charset), "ignore")
+                            except LookupError:
+                                print('FAIL: unknown charset')
+                                decoded_part = payload.decode()
+
+                        header_content_disposition = header_parser.header_parse(part, 'Content-Disposition')
+
+                        attachment_part = False
+
+                        if part.get_filename() is not None or header_content_disposition == 'attachment':
+                            attachment_part = True
+                            if part.get_filename() is not None:
+                                file_name = email.header.decode_header(part.get_filename())
+                            else:
                                 try:
                                     file_format = '.' + part.get_subtype()
                                     print('GET_SUBTYPE: ' + file_format)
                                 except:
                                     file_format = ''
-                                #file_path = 'res/html/' + msg_num + '_' + ('1') + file_format
                                 file_name = '1' + file_format
-
-                        print("!!!!!!!!!")
-                        '''
-                        m = hashlib.md5()
-                        m.update(payload)
-
-
-                        file_path = ''
-                        for i in m.hexdigest():
-                            file_path += i + '/'
-
-
-                        os.makedirs('res/html/'+file_path, exist_ok=True)
-
-                        fp = open('res/html/'+file_path+file_name, 'wb')
-                        fp.write(payload)
-                        fp.close()
-                        '''
-
-                        message_object.save()
-                        at = Attachment()
-                        at.message = message_object
-                        at.file.save(str(message_object.id)+'_'+file_name, ContentFile(payload))
-
-
-                    if decoded_part is not None:
-                        try:
-                            if part.get_content_type() == 'text/plain' and attachment_part == False:
-                                #decoded_part = '<pre>' + decoded_part.strip() + '</pre>'
-                                decoded_part = decoded_part.strip()
-                                parts.append(decoded_part.strip())
-                                signal.signal(signal.SIGALRM, parse_timeout_signal_handler)
-                                signal.alarm(10)
+                            if isinstance(file_name[0][0], str):
+                                file_name = file_name[0][0]
+                            else:
                                 try:
-                                    parsed_plain = parser.parse(decoded_part)
-                                    signal.alarm(0)
-                                except Exception:
-                                    print("Error: Time Out")
-                                    continue
+                                    file_name = file_name[0][0].decode(file_name[0][1])
+                                except:
+                                    try:
+                                        file_format = '.' + part.get_subtype()
+                                        print('GET_SUBTYPE: ' + file_format)
+                                    except:
+                                        file_format = ''
+                                    file_name = '1' + file_format
 
+                            '''
+                            m = hashlib.md5()
+                            m.update(payload)
 
-                        except TypeError:
-                            print('FAIL: TypeError')
+                            file_path = ''
+                            for i in m.hexdigest():
+                                file_path += i + '/'
+
+                            os.makedirs('res/html/'+file_path, exist_ok=True)
+
+                            fp = open('res/html/'+file_path+file_name, 'wb')
+                            fp.write(payload)
+                            fp.close()
+                            '''
+
+                            message_object.save()
+                            at = Attachment()
+                            at.message = message_object
+                            at.file.save(str(message_object.id) + '_' + file_name, ContentFile(payload))
+
+                        if decoded_part is not None:
                             try:
-                                parts.append(decoded_part.decode())
-                            except:
-                                pass
+                                if part.get_content_type() == 'text/plain' and attachment_part == False:
+                                    decoded_part = decoded_part.strip()
+                                    parts.append(decoded_part.strip())
+                                    signal.signal(signal.SIGALRM, parse_timeout_signal_handler)
+                                    signal.alarm(10)
+                                    try:
+                                        parsed_plain = parser.parse(decoded_part)
+                                        signal.alarm(0)
+                                    except Exception:
+                                        print("Error: Time Out")
+                                        continue
 
-                        try:
-                            if part.get_content_type() == 'text/html' and attachment_part == False:
-                                parts.append(decoded_part)
-                                signal.signal(signal.SIGALRM, parse_timeout_signal_handler)
-                                signal.alarm(40)
+
+                            except TypeError:
+                                print('FAIL: TypeError')
                                 try:
-                                    parsed_html = parser.parse_html(decoded_part)
-                                    signal.alarm(0)
-                                except Exception:
-                                    print("Error: Time Out")
-                                    continue
-                        except TypeError:
-                            print('FAIL: TypeError')
+                                    parts.append(decoded_part.decode())
+                                except:
+                                    pass
+
                             try:
-                                parts.append(decoded_part.decode())
-                            except:
-                                pass
+                                if part.get_content_type() == 'text/html' and attachment_part == False:
+                                    parts.append(decoded_part)
+                                    signal.signal(signal.SIGALRM, parse_timeout_signal_handler)
+                                    signal.alarm(50)
+                                    try:
+                                        parsed_html = parser.parse_html(decoded_part)
+                                        signal.alarm(0)
+                                    except Exception:
+                                        print("Error: Time Out")
+                                        continue
+                            except TypeError:
+                                print('FAIL: TypeError')
+                                try:
+                                    parts.append(decoded_part.decode())
+                                except:
+                                    pass
 
-            if not len(parts):
-                print('FILTERED: no correct parts')
-                continue
+                if not len(parts):
+                    print('FILTERED: no correct parts')
+                    continue
 
-            print('OK: ' + msg_num)
+                print('OK: ' + msg_num)
 
-            with open('res/html/' + msg_num + '.html', 'w+') as f:
-                if charset is None:
-                    charset = 'utf-8'
-                f.write('<meta charset="' + 'utf-8' + '">')
+                with open('res/html/' + msg_num + '.html', 'w+') as f:
+                    '''
+                    if charset is None:
+                        charset = 'utf-8'
+                    f.write('<meta charset="' + 'utf-8' + '">')
 
-                for part in parts:
-                    if isinstance(part, str):
-                        f.write(part)
+                    for part in parts:
+                        if isinstance(part, str):
+                            f.write(part)
+                            f.write('\n\n<br /><br /><br /><br />\n\n')
+                    f.write('<br>________________________________________________________________________________')
+                    if message['Subject'] is not None:
+                        f.write(
+                            '<br>Subject: ' + str(email.header.make_header(email.header.decode_header(message['Subject']))))
                         f.write('\n\n<br /><br /><br /><br />\n\n')
-                f.write('<br>________________________________________________________________________________')
-                if message['Subject'] is not None:
-                    f.write(
-                        '<br>Subject: ' + str(email.header.make_header(email.header.decode_header(message['Subject']))))
-                    f.write('\n\n<br /><br /><br /><br />\n\n')
-                # f.write('<br>'+str(type_of_message)+'<br>')
-                f.write('________________________________________________________________________________<br>\n')
-                if parsed_html == None:
-                    if parsed_plain != None:
+                    # f.write('<br>'+str(type_of_message)+'<br>')
+                    f.write('________________________________________________________________________________<br>\n')
+                    '''
+                    if parsed_html == None:
+                        if parsed_plain != None:
 
-                        message_object.text = parsed_plain[0]
+                            message_object.text = parsed_plain[0]
 
-                        f.write(parsed_plain[0])
-                        if parsed_plain[2] == 0:
-
-                            message_object.quote = parsed_plain[1]
-
+                            # f.write(parsed_plain[0])
+                            if parsed_plain[2] == 0:
+                                message_object.quote = parsed_plain[1]
+                                '''
+                                f.write(
+                                    '<br>________________________________________________________________________________<br>\n')
+                                f.write(parsed_plain[1])
+                                '''
+                            try:
+                                message_object.save()
+                            except:
+                                pass
+                    else:
+                        # f.write(parsed_html[0])
+                        message_object.text = parsed_html[0]
+                        if parsed_html[2] == 0:
+                            message_object.quote = parsed_html[1]
+                            '''
                             f.write(
                                 '<br>________________________________________________________________________________<br>\n')
-                            f.write(parsed_plain[1])
-                        message_object.save()
-                else:
-                    f.write(parsed_html[0])
-                    message_object.text = parsed_html[0]
-                    if parsed_html[2] == 0:
-                        message_object.quote = parsed_html[1]
-                        f.write(
-                            '<br>________________________________________________________________________________<br>\n')
-                        f.write('<blockquote>' + parsed_html[1] + '</blockquote>')
-                    message_object.save()
+                            f.write('<blockquote>' + parsed_html[1] + '</blockquote>')
+                            '''
+                        try:
+                            message_object.save()
+                        except:
+                            pass
+            except:
+                mail.store(i, '+FLAGS', '\\UNSEEN')
+                print("UNDEFINED ERROR")
+
+
+        mail.close()
+        mail.logout()

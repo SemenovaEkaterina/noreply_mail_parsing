@@ -1,6 +1,7 @@
 {% extends "_base.html" %}
 {% block content %}
           <h2>Table</h2>
+          <h4>Всего: {{ count }}</h4>
           <div class="table-responsive">
             <table class="table table-condensed">
               <thead>
@@ -21,4 +22,13 @@
               </tbody>
             </table>
           </div>
+    {% for num in range %}
+			{% if num == messages.number %}
+                <li class="active" id="pagination_button"><a href="#">{{ num }}</a></li>
+            {% else %}
+                <li id="pagination_button"><a href="?page={{ num }}">{{ num }}</a></li>
+			{% endif %}
+    {% endfor %}
+    <br>
+    <br>
 {% endblock %}

@@ -3,11 +3,16 @@ from mail_parsing.models import EmailAddress, Message, Attachment
 from noreply_mail_parsing.settings import BASE_DIR, MEDIA_ROOT
 from django.http import HttpResponse
 import json
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 
 def invalid(request):
     addresses = EmailAddress.objects.all()
-    return render(request, 'invalid_addresses.html', {'addresses': addresses})
+    count = addresses.count()
+    addresses, max_page = paginate(addresses, request)
+    return render(request, 'invalid_addresses.html', {'addresses': addresses,
+                                                      'range': get_range(addresses.number, max_page),
+                                                      'count': count})
 
 
 def message(request, id):
@@ -32,17 +37,30 @@ def message(request, id):
 
 def response_messages(request):
     messages = Message.objects.filter(type=0,status=2).order_by('-id')
-    return render(request, 'table.html', {'messages': messages})
+    count = messages.count()
+    messages, max_page = paginate(messages, request)
+    return render(request, 'table.html', {'messages': messages,
+                                          'range': get_range(messages.number, max_page),
+                                          'count': count})
 
 
 def other_messages(request):
     messages = Message.objects.filter(type=1,status=2).order_by('-id')
-    return render(request, 'table.html', {'messages': messages})
+    count = messages.count()
+    messages, max_page = paginate(messages, request)
+    return render(request, 'table.html', {'messages': messages,
+                                          'range': get_range(messages.number, max_page),
+                                          'count': count})
 
 
 def unaccepted(request):
     messages = Message.objects.filter(status=1).order_by('-id')
-    return render(request, 'table.html', {'messages': messages})
+    count = messages.count()
+    messages, max_page = paginate(messages, request)
+    return render(request, 'table.html', {'messages': messages,
+                                          'range': get_range(messages.number, max_page),
+                                          'count': count
+                                          })
 
 def accept(request):
     id = request.POST.get('id')
@@ -55,6 +73,7 @@ def accept(request):
         content_type="application/json"
     )
 
+
 def not_accept(request):
     id = request.POST.get('id')
     message_object = Message.objects.get(id=id)
@@ -65,4 +84,24 @@ def not_accept(request):
         json.dumps(response_data),
         content_type="application/json"
     )
+
+
+def paginate(objects_list, request):
+    paginator = Paginator(objects_list, 50)
+    page = request.GET.get('page')
+    try:
+        objects = paginator.page(page)
+    except PageNotAnInteger:
+        objects = paginator.page(1)
+    except EmptyPage:
+        objects = paginator.page(paginator.num_pages)
+    return objects, paginator.num_pages
+
+def get_range(page, max_page):
+    page = int(page)
+    limits = []
+    for i in range(-2, 3):
+        if (0 < page + i <= max_page):
+            limits.append(page + i)
+    return limits
 

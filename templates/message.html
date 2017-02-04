@@ -9,17 +9,20 @@
           <hr>
           <h3>In-Reply-To:</h3> {{ message.in_reply_to_header }}
           <hr>
-          <h3>Text:</h3> {{ message.text}}
+          <h3>Text:</h3><pre>{{ message.text}}</pre>
           <hr>
-          <h3>Quote:</h3> {{ message.quote }}
+          <h3>Quote:</h3><pre>{{ message.quote }}</pre>
           <hr>
           <h3>Files:</h3>
             {% for file in files %}
                 <a href="{{ path }}{{ file.file.name }}" target="_blank">{{ file.file.name }}</a>
                 <br>
             {% endfor %}
+          <hr>
+          <h3>Original:</h3><pre>{{ message.original }}</pre>
           <br>
           <br>
+
     </div>
     <div class="col-md-2">
           <br>
