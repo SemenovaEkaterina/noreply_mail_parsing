@@ -157,6 +157,7 @@ class Command(BaseCommand):
 
             '''
             if invalid_address is None and limit_exceed == False and no_such_user:
+                mail.store(i, '-FLAGS', '\\SEEN')
                 print("UNDEFINED "+str(msg_num))
                 r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                 try:

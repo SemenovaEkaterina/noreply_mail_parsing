@@ -15,7 +15,7 @@
           <hr>
           <h3>Files:</h3>
             {% for file in files %}
-                <a href="{{ path }}{{ file.file.name }}" target="_blank">{{ file.file.name }}</a>
+                <a href="{{ file.file.url }}" target="_blank">{{ file.file.name }}</a>
                 <br>
             {% endfor %}
           <hr>
@@ -43,7 +43,11 @@
           <br>
           <br>
         {% if prev != -1 %}
-        <form action="{% url 'message' prev %}" class="mail_parsing-button">
+        <form action="{% url 'message' prev %}" class="mail_parsing-button" method="get">
+        {% if list_type != -1 %}
+          <input type="hidden" name="type" value="{{ list_type }}">
+        {% endif %}
+          <input type="hidden" name="status" value="{{ list_status }}">
           <button type="submit" class="btn btn-default">
           <span class="glyphicon glyphicon-menu-left" aria-hidden="true"></span>
           </button>
@@ -54,7 +58,11 @@
           </button>
         {% endif %}
         {% if next != -1 %}
-        <form action="{% url 'message' next %}" class="mail_parsing-button">
+        <form action="{% url 'message' next %}" class="mail_parsing-button" method="get">
+        {% if list_type != -1 %}
+          <input type="hidden" name="type" value="{{ list_type }}">
+        {% endif %}
+          <input type="hidden" name="status" value="{{ list_status }}">
           <button type="submit" class="btn btn-default">
           <span class="glyphicon glyphicon-menu-right" aria-hidden="true"></span>
           </button>

@@ -15,7 +15,7 @@
               {% for message in messages %}
                 <tr>
                   <td>{{ message.id }}</td>
-                  <td><a href="{% url 'message' message.id %}">{{ message.msg_from }}</a></td>
+                  <td><a href="{% url 'message' message.id %}{{ type_of_list }}">{{ message.msg_from }}</a></td>
                   <td>{{ message.subject }}</td>
                 </tr>
               {% endfor %}

@@ -18,49 +18,101 @@ def invalid(request):
 def message(request, id):
     message = Message.objects.get(id=id)
     files = Attachment.objects.filter(message=message)
-    next_id = Message.objects.filter(type=message.type, status=message.status, id__lt=message.id).order_by('-id')
-    if len(next_id) > 0:
-        next_id = next_id[0].id
+
+    if request.GET.get('status') is not None:
+        list_status = request.GET.get('status')
+        if request.GET.get('type') is not None:
+            list_type = request.GET.get('type')
+            next_id = Message.objects.filter(type=list_type, status=list_status, id__lt=message.id).order_by(
+                '-id')
+            if len(next_id) > 0:
+                next_id = next_id[0].id
+            else:
+                next_id = -1
+            prev_id = Message.objects.filter(type=list_type, status=list_status, id__gt=message.id).order_by('id')
+            if len(prev_id) > 0:
+                prev_id = prev_id[0].id
+            else:
+                prev_id = -1
+        else:
+            list_type = -1
+            next_id = Message.objects.filter(status=list_status, id__lt=message.id).order_by(
+                '-id')
+            if len(next_id) > 0:
+                next_id = next_id[0].id
+            else:
+                next_id = -1
+            prev_id = Message.objects.filter(status=list_status, id__gt=message.id).order_by('id')
+            if len(prev_id) > 0:
+                prev_id = prev_id[0].id
+            else:
+                prev_id = -1
     else:
+        list_status = -1
+        list_type = -1
         next_id = -1
-    prev_id = Message.objects.filter(type=message.type, status=message.status, id__gt=message.id).order_by('id')
-    if len(prev_id) > 0:
-        prev_id = prev_id[0].id
-    else:
         prev_id = -1
+
+
     return render(request, 'message.html', {'message': message,
                                             'files': files,
                                             'path': 'file://'+MEDIA_ROOT+'/',
                                             'next': next_id,
-                                            'prev': prev_id})
+                                            'prev': prev_id,
+                                            'list_type': list_type,
+                                            'list_status': list_status})
 
 
 def response_messages(request):
+    type_of_list = '?'
+    for param in request.GET.keys():
+        type_of_list += param + '=' + request.GET[param] + '&'
     messages = Message.objects.filter(type=0,status=2).order_by('-id')
     count = messages.count()
     messages, max_page = paginate(messages, request)
     return render(request, 'table.html', {'messages': messages,
                                           'range': get_range(messages.number, max_page),
-                                          'count': count})
+                                          'count': count,
+                                          'type_of_list': type_of_list})
 
 
 def other_messages(request):
+    type_of_list = '?'
+    for param in request.GET.keys():
+        type_of_list += param + '=' + request.GET[param] + '&'
     messages = Message.objects.filter(type=1,status=2).order_by('-id')
     count = messages.count()
     messages, max_page = paginate(messages, request)
     return render(request, 'table.html', {'messages': messages,
                                           'range': get_range(messages.number, max_page),
-                                          'count': count})
+                                          'count': count,
+                                          'type_of_list': type_of_list})
+
+
+def accepted(request):
+    type_of_list = '?'
+    for param in request.GET.keys():
+        type_of_list += param + '=' + request.GET[param] + '&'
+    messages = Message.objects.filter(status=0).order_by('-id')
+    count = messages.count()
+    messages, max_page = paginate(messages, request)
+    return render(request, 'table.html', {'messages': messages,
+                                          'range': get_range(messages.number, max_page),
+                                          'count': count,
+                                          'type_of_list': type_of_list})
 
 
 def unaccepted(request):
+    type_of_list = '?'
+    for param in request.GET.keys():
+        type_of_list += param + '=' + request.GET[param] + '&'
     messages = Message.objects.filter(status=1).order_by('-id')
     count = messages.count()
     messages, max_page = paginate(messages, request)
     return render(request, 'table.html', {'messages': messages,
                                           'range': get_range(messages.number, max_page),
-                                          'count': count
-                                          })
+                                          'count': count,
+                                          'type_of_list': type_of_list})
 
 def accept(request):
     id = request.POST.get('id')

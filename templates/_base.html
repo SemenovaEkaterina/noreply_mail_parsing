@@ -30,10 +30,11 @@
             <li class="list-group-item"><a href="{% url 'invalid' %}">- Недоступные адреса</a></li>
             <li class="list-group-item">Сообщения</li>
             <li class="list-group-item">- Новые</li>
-            <li class="list-group-item"><a href="{% url 'response' %}">-- Ответы</a></li>
-            <li class="list-group-item"><a href="{% url 'other' %}">-- Другие</a></li>
+            <li class="list-group-item"><a href="{% url 'response' %}?type=0&status=2">-- Ответы</a></li>
+            <li class="list-group-item"><a href="{% url 'other' %}?type=1&status=2">-- Другие</a></li>
             <li class="list-group-item">- Просмотренные</li>
-            <li class="list-group-item"><a href="{% url 'unaccepted' %}">-- Неодобренные</a></li>
+            <li class="list-group-item"><a href="{% url 'accepted' %}?status=0">-- Одобренные</a></li>
+            <li class="list-group-item"><a href="{% url 'unaccepted' %}?status=1">-- Неодобренные</a></li>
           </ul>
         </div>
         <div class="col-md-10 main">
