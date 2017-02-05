@@ -11,7 +11,11 @@ pre {
 
 #pagination_button {
     display: inline-block;
-    width: 30px;
-    height: 20px;
+    border: 1px solid darkgrey;
+    border-radius: 10%;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 4px;
+    padding-right: 4px;
+    margin: 5px;
 }
-

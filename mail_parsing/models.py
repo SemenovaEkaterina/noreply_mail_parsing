@@ -14,14 +14,15 @@ def upload_to(instance, filename):
 
 class EmailAddress(models.Model):
     address = models.EmailField(max_length=75, blank=False)
-    limit_exceed_chance = models.FloatField(default=0)
-    detected_spam_chance = models.FloatField(default=0)
+    limit_exceed_chance = models.IntegerField(default=0)
+    detected_spam_chance = models.IntegerField(default=0)
 
 
 class Message(models.Model):
-    msg_from = models.EmailField(max_length=75, blank=False)
+    msg_from = models.EmailField(max_length=75)
     subject = models.CharField(max_length=150, default='')
     in_reply_to_header = models.CharField(max_length=150, default='')
+    # 0 - responses, 1 - other
     type = models.IntegerField(default=1)
     # status: 0 - accepted; 1 - unaccepted; 2 - undefined
     status = models.IntegerField(default=2)

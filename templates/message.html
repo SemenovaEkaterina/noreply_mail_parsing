@@ -3,28 +3,27 @@
     {% csrf_token %}
     <div class="row">
     <div class="col-md-10">
-          <h3>From:</h3> {{ message.msg_from }}
+          <h4>From:</h4> {{ message.msg_from }}
           <hr>
-          <h3>Subject:</h3> {{ message.subject }}
+          <h4>Subject:</h4> {{ message.subject }}
           <hr>
-          <h3>In-Reply-To:</h3> {{ message.in_reply_to_header }}
+          <h4>In-Reply-To:</h4> {{ message.in_reply_to_header }}
           <hr>
-          <h3>Text:</h3><pre>{{ message.text}}</pre>
+          <h4>Text:</h4><pre>{{ message.text}}</pre>
           <hr>
-          <h3>Quote:</h3><pre>{{ message.quote }}</pre>
+          <h4>Quote:</h4><pre>{{ message.quote }}</pre>
           <hr>
-          <h3>Files:</h3>
+          <h4>Files:</h4>
             {% for file in files %}
                 <a href="{{ file.file.url }}" target="_blank">{{ file.file.name }}</a>
                 <br>
             {% endfor %}
           <hr>
-          <h3>Original:</h3><pre>{{ message.original }}</pre>
-          <br>
-          <br>
 
     </div>
     <div class="col-md-2">
+          <br>
+          <br>
           <br>
         {% if message.status == 0 %}
           <button type="button" class="btn btn-default mail_parsing-accept btn-success" message_id="{{ message.id }}">
@@ -74,7 +73,13 @@
         {% endif %}
     </div>
     </div>
-
+    <div class="row">
+    <div class="col-md-10">
+        <h4>Original:</h4><pre>{{ message.original }}</pre>
+              <br>
+              <br>
+    </div>
+    </div>
     {% load static %}
     <script type="text/javascript" src="{%  static 'scripts/jquery-3.1.1.min.js' %}"></script>
     <script type="text/javascript" src="{%  static 'scripts/accept.js' %}"></script>

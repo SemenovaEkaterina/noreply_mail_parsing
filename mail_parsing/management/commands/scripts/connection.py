@@ -2,7 +2,7 @@ import imaplib
 import sys
 import os
 SEARCH_FOLDER = 'Trash'
-imaplib._MAXLINE = 2000000
+imaplib._MAXLINE = 3000000
 
 def make_message_list(search_criteria):
     mail = imaplib.IMAP4_SSL('imap.gmail.com')

@@ -103,7 +103,6 @@ post_patterns = [
     (re.compile(r'\n ?Получите и Вы свой бесплатный электронный адрес на .+\n'), '\n'),
 ]
 '''
-
 quote_pattern = re.compile(r'\n[^\n]+ написала?.?вам.?сообщение.?в.+Электронном.+журнале.+школы.*№.+:.*'
                              r'Это.+автоматическое.+уведомление,.+и.+на.+него.+не.+следует.+отвечать\..+'
                              r'Чтобы.+ответить.+отправителю,.+войдите.+в.+Электронный.+журнал.+https://.+\.eljur\.ru',
@@ -111,14 +110,14 @@ quote_pattern = re.compile(r'\n[^\n]+ написала?.?вам.?сообщен�
 
 datetime_patterns = [
     (re.compile(r'\n.*Исходное сообщение.*\n*.*[\n]+Дата: ?.+[\n]+Кому: ?.+[\n]+Тема: ?.+\n'), '\n'),
-    (re.compile(r'\nSent: ?.+[\n]+To: ?.+[\n]+Subject: ?.+\n'), '\n'),
-    (re.compile(r'От: ?.+[\n]+Отправлено: ?.+[\n]+Кому: ?.+[\n]+Тема: ?.+\n'),'\n'),
-    (re.compile(r'\n.+20\d\d ?г., \d{1,2}:\d\d пользователь.+<.+@.+\..+> ?[\n]?написал:.+\n'), '\n'),
-    (re.compile(r'\n.+[П,п]ользователь.+Электронный журнал.+[\n]?написал.+\n'), '\n'),
-    (re.compile(r'\n\d\d\.\d\d\.20\d\d \d?\d:\d\d, Электронный журнал.*[\n]?пишет:.*\n'), '\n'),
+    (re.compile(r'\nSent: ?.+To: ?.+Subject: ?.+\n', re.DOTALL), '\n'),
+    (re.compile(r'\nОт: ?.+Отправлено: ?.+Кому: ?.+Тема: ?.+\n', re.DOTALL),'\n'),
+    (re.compile(r'\n.+20\d\d ?г., \d{1,2}:\d\d пользователь.+<.+@.+\..+> ?[\n]? ?написал:.+\n'), '\n'),
+    (re.compile(r'\n.+[П,п]ользователь.+Электронный журнал.+[\n]? ?написал.+\n'), '\n'),
+    (re.compile(r'\n\d\d\.\d\d\.20\d\d \d?\d:\d\d, Электронный журнал.*[\n]? ?пишет:.*\n'), '\n'),
     (re.compile(r'\n.+Электронный журнал.+noreply@eljur.ru.*\n'), '\n'),
     (re.compile(r'\nЭлектронный журнал.+noreply@eljur.ru.*20\d\d ?г\..+Сообщение:.*\n'), '\n'),
-    (re.compile(r'\n.+ 20\d\d ?г?\.?,? \d?\d:\d\d .+ от Электронный журнал .+noreply@eljur.ru.+:.+\n'), '\n'),
+    (re.compile(r'\n.+ 20\d\d ?г?\.?,? \d?\d:\d\d .+ от( Электронный журнал)? .+noreply@eljur.ru.+:.*\n'), '\n'),
 ]
 
 pre_patterns = [
@@ -132,13 +131,13 @@ pre_patterns = [
 post_patterns = [
     (re.compile(r'\n ?Отправлено с[о]? .+\n'), '\n'),
     (re.compile(r'\n ?Отправлено из .+\n'), '\n'),
-    (re.compile(r'\n ?Sent from .+\n'), '\n'),
+    (re.compile(r'\n.+ ?Sent from .+\n'), '\n'),
     (re.compile(r'\n---? ?\n'), '\n'),
     (re.compile(r'>?[\s]*---? ?'), '>\n'),
-    (re.compile(r'\n> ?\n'), '\n'),
     (re.compile(r'\s*\n'), '\n'),
     (re.compile(r'\n{2,}'), '\n'),
     (re.compile(r'\n ?Получите и Вы свой бесплатный электронный адрес на .+\n'), '\n'),
+    (re.compile(r'\n> ?\n'), '\n'),
 ]
 
 
@@ -155,22 +154,22 @@ def parse(text):
     for pattern in pre_patterns:
         text = pattern[0].sub(pattern[1], text)
 
-
     quote = re.search(quote_pattern, text)
     if quote is not None:
         quote = quote.group()
         text = re.sub(quote_pattern, '\n', text)
+        has_quote = 0
+        for pattern in datetime_patterns:
+            datetime = re.search(pattern[0], text)
+            if datetime is not None:
+                quote = datetime.group() + quote
+            text = re.sub(pattern[0], pattern[1], text)
+
+
     else:
-        return text, '', 1
-
-    for pattern in datetime_patterns:
-
-        datetime = re.search(pattern[0], text)
-        if datetime is not None:
-            quote = datetime.group() + quote
-        text = re.sub(pattern[0], pattern[1], text)
+        has_quote = 1
 
     for pattern in post_patterns:
         text = re.sub(pattern[0], pattern[1], text)
 
-    return text, quote, 0
+    return text, quote, has_quote
