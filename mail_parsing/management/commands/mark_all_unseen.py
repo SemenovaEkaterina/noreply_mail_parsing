@@ -15,7 +15,7 @@ class Command(BaseCommand):
             count += 1
             try:
                 mail.store("1:*", '-FLAGS', '\\SEEN')
-                #mail.store("11046", '-FLAGS', '\\SEEN')
+                #mail.store("12731", '-FLAGS', '\\SEEN')
             except imaplib.IMAP4.abort:
                 continue
 

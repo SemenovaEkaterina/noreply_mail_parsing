@@ -152,8 +152,8 @@ class Command(BaseCommand):
         # message_ids, mail = make_message_list('ALL')
         print(len(message_ids))
 
-        min_id = os.environ.get('MIN_ID', 11523)
-        max_id = os.environ.get('MAX_ID', 15000)
+        min_id = os.environ.get('MIN_ID', 0)
+        max_id = os.environ.get('MAX_ID', 10000)
 
         for i in message_ids:
 
@@ -592,7 +592,7 @@ class Command(BaseCommand):
                 if go_next:
                     continue
 
-                if not len(parts):
+                if not len(parts) and not attachment_part:
                     mail.store(i, '-FLAGS', '\\SEEN')
                     print('FILTERED: no correct parts')
                     try:
