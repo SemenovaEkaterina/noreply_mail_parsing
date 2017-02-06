@@ -86,10 +86,12 @@ DATABASES = {
         'PASSWORD': '123',
         'HOST': 'localhost',
         'PORT': 3306,
-        'OPTIONS': {'charset': 'utf8'},
+        'OPTIONS': {'charset': 'utf8mb4'},
         #'TEST_CHARSET': 'utf8',
     }
 }
+
+CONN_MAX_AGE = 5
 
 
 # Password validation

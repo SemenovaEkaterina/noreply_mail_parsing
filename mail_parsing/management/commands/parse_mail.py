@@ -7,14 +7,13 @@ import sys
 
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
+from django.db import close_old_connections
 
 import mail_parsing.management.commands.scripts.header_parser as header_parser
 import mail_parsing.management.commands.scripts.message_parser as parser
 from mail_parsing.management.commands.scripts.connection import make_message_list
 from mail_parsing.models import EmailAddress, Message, Attachment
 
-imaplib._MAXLINE = 2000000
-SEARCH_FOLDER = 'Trash'
 
 WRONG_HEADERS_VALS = [
     ('Auto-Submitted', 'auto-replied'),
@@ -30,6 +29,7 @@ WRONG_HEADERS_VALS = [
     ('x-ms-exchange-generated-message-source', 'Mailbox Rules Agent'),
     ('X-MS-Exchange-Inbox-Rules-Loop', ''),  # ?
     ('X-Auto-Response-Suppress', 'All'),  # не факт
+    ('X-Autoreply-From', ''),
 ]
 
 # Отсутствует: в начале темы тоже м.б.
@@ -148,11 +148,12 @@ def parse_timeout_signal_handler(signum, frame):
 class Command(BaseCommand):
     def handle(self, *args, **options):
 
-        # message_ids, mail = make_message_list('UNSEEN')
-        message_ids, mail = make_message_list('ALL')
+        message_ids, mail = make_message_list('UNSEEN')
+        # message_ids, mail = make_message_list('ALL')
+        print(len(message_ids))
 
-        min_id = os.environ.get('MIN_ID', 140000)
-        max_id = os.environ.get('MAX_ID', 140100)
+        min_id = os.environ.get('MIN_ID', 11523)
+        max_id = os.environ.get('MAX_ID', 15000)
 
         for i in message_ids:
 
@@ -228,7 +229,7 @@ class Command(BaseCommand):
                                                     limit_exceed_chance=limit_exceed_chance,
                                                     detected_spam_chance=0)
                     except:
-                        print("CANT SAVE " + msg_num)
+                        print("CANT SAVE_1 " + msg_num)
                         mail.store(i, '-FLAGS', '\\SEEN')
                         try:
                             r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -261,6 +262,9 @@ class Command(BaseCommand):
                 if header_parser.header_parse(message, 'Errors-To') is not None:
                     if 'autoreply' in header_parser.header_parse(message, 'Errors-To'):
                         autoreply += 0.2
+
+                if header_parser.header_parse(message, 'X-Autoreply') is not None:
+                    autoreply += 0.2
 
                 # Если автоответ, то со оригинального адреса
                 wrong_from_in = False
@@ -390,7 +394,7 @@ class Command(BaseCommand):
                                                         limit_exceed_chance=limit_exceed_chance,
                                                         detected_spam_chance=detected_spam_chance)
                         except:
-                            print("CANT SAVE " + msg_num)
+                            print("CANT SAVE_2 " + msg_num)
                             mail.store(i, '-FLAGS', '\\SEEN')
                             try:
                                 r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -435,11 +439,14 @@ class Command(BaseCommand):
                     original = message.__str__()
                 except KeyError:
                     try:
-                        original = message.as_bytes().decode(encoding='UTF-8')
+                        original = message.as_bytes().decode(encoding=message.get_content_charset())
                     except:
-                        mail.store(i, '-FLAGS', '\\SEEN')
-                        print('CANT DECODE ORIGINAL')
-                        continue
+                        try:
+                            original = message.as_bytes().decode(encoding='UTF-8')
+                        except:
+                            mail.store(i, '-FLAGS', '\\SEEN')
+                            print('CANT DECODE ORIGINAL '+msg_num)
+                            continue
 
                 message_object = Message(msg_from=message_from,
                                          subject=message_subject,
@@ -490,11 +497,12 @@ class Command(BaseCommand):
                                         file_format = ''
                                     file_name = '1' + file_format
 
+                            message_object.save()
                             try:
                                 message_object.save()
                             except:
                                 go_next = True
-                                print("CANT SAVE "+msg_num)
+                                print("CANT SAVE_3 "+msg_num)
                                 mail.store(i, '-FLAGS', '\\SEEN')
                                 try:
                                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -509,7 +517,7 @@ class Command(BaseCommand):
                                 at.file.save(str(message_object.id) + '_' + file_name, ContentFile(payload))
                             except:
                                 go_next = True
-                                print("CANT SAVE " + msg_num)
+                                print("CANT SAVE_4 " + msg_num)
                                 mail.store(i, '-FLAGS', '\\SEEN')
                                 try:
                                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -609,7 +617,7 @@ class Command(BaseCommand):
                             try:
                                 message_object.save()
                             except:
-                                print("CANT SAVE " + msg_num)
+                                print("CANT SAVE_5 " + msg_num)
                                 mail.store(i, '-FLAGS', '\\SEEN')
                                 try:
                                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -625,7 +633,7 @@ class Command(BaseCommand):
                         try:
                             message_object.save()
                         except:
-                            print("CANT SAVE " + msg_num)
+                            print("CANT SAVE_6 " + msg_num)
                             mail.store(i, '-FLAGS', '\\SEEN')
                             try:
                                 r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -634,7 +642,7 @@ class Command(BaseCommand):
                             except:
                                 pass
                             continue
-            except:
+            except MemoryError:
                 mail.store(i, '-FLAGS', '\\SEEN')
                 try:
                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
