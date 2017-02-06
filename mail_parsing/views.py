@@ -25,25 +25,26 @@ def message(request, id):
             list_type = request.GET.get('type')
             next_id = Message.objects.filter(type=list_type, status=list_status, id__lt=message.id).order_by(
                 '-id')
-            if len(next_id) > 0:
+            if next_id.count() > 0:
                 next_id = next_id[0].id
             else:
                 next_id = -1
             prev_id = Message.objects.filter(type=list_type, status=list_status, id__gt=message.id).order_by('id')
-            if len(prev_id) > 0:
+            if prev_id.count() > 0:
                 prev_id = prev_id[0].id
             else:
                 prev_id = -1
         else:
             list_type = -1
+
             next_id = Message.objects.filter(status=list_status, id__lt=message.id).order_by(
                 '-id')
-            if len(next_id) > 0:
+            if next_id.count() > 0:
                 next_id = next_id[0].id
             else:
                 next_id = -1
             prev_id = Message.objects.filter(status=list_status, id__gt=message.id).order_by('id')
-            if len(prev_id) > 0:
+            if prev_id.count() > 0:
                 prev_id = prev_id[0].id
             else:
                 prev_id = -1

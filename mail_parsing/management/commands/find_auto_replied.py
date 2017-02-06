@@ -21,8 +21,8 @@ ADDRESS_FAILED_TEXT = [
 class Command(BaseCommand):
     def handle(self, *args, **options):
 
-        # message_ids, mail = make_message_list('FROM "MAILER-DAEMON" UNSEEN')
-        message_ids, mail = make_message_list('FROM "MAILER-DAEMON"')
+        message_ids, mail = make_message_list('FROM "MAILER-DAEMON" UNSEEN')
+        # message_ids, mail = make_message_list('FROM "MAILER-DAEMON"')
 
         min_id = os.environ.get('MIN_ID', 20000)
         max_id = os.environ.get('MAX_ID', 40000)

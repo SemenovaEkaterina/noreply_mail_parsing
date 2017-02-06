@@ -168,13 +168,16 @@ class Command(BaseCommand):
 
                 try:
                     res, encoded_message = mail.fetch(i, '(RFC822)')
-                except imaplib.IMAP4.error:
-                    mail.store(i, '-FLAGS', '\\SEEN')
-                    sys.exit(1)
+                except:
+                    try:
+                        mail.store(i, '-FLAGS', '\\SEEN')
+                    except:
+                        pass
+                    continue
 
                 try:
                     message = email.message_from_bytes(encoded_message[0][1])
-                except email.errors.MessageParseError:
+                except:
                     mail.store(i, '-FLAGS', '\\SEEN')
                     continue
 
@@ -605,35 +608,18 @@ class Command(BaseCommand):
 
                 print('OK: ' + msg_num)
 
-                with open('res/html/' + msg_num + '.html', 'w+') as f:
 
-                    if parsed_html is None:
-                        if parsed_plain is not None:
+                if parsed_html is None:
+                    if parsed_plain is not None:
 
-                            message_object.text = parsed_plain[0]
+                        message_object.text = parsed_plain[0]
 
-                            if parsed_plain[2] == 0:
-                                message_object.quote = parsed_plain[1]
-                            try:
-                                message_object.save()
-                            except:
-                                print("CANT SAVE_5 " + msg_num)
-                                mail.store(i, '-FLAGS', '\\SEEN')
-                                try:
-                                    r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                                    r.write(message.as_bytes().decode(encoding='UTF-8'))
-                                    r.close()
-                                except:
-                                    pass
-                                continue
-                    else:
-                        message_object.text = parsed_html[0]
-                        if parsed_html[2] == 0:
-                            message_object.quote = parsed_html[1]
+                        if parsed_plain[2] == 0:
+                            message_object.quote = parsed_plain[1]
                         try:
                             message_object.save()
                         except:
-                            print("CANT SAVE_6 " + msg_num)
+                            print("CANT SAVE_5 " + msg_num)
                             mail.store(i, '-FLAGS', '\\SEEN')
                             try:
                                 r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -642,7 +628,23 @@ class Command(BaseCommand):
                             except:
                                 pass
                             continue
-            except MemoryError:
+                else:
+                    message_object.text = parsed_html[0]
+                    if parsed_html[2] == 0:
+                        message_object.quote = parsed_html[1]
+                    try:
+                        message_object.save()
+                    except:
+                        print("CANT SAVE_6 " + msg_num)
+                        mail.store(i, '-FLAGS', '\\SEEN')
+                        try:
+                            r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
+                            r.write(message.as_bytes().decode(encoding='UTF-8'))
+                            r.close()
+                        except:
+                            pass
+                        continue
+            except:
                 mail.store(i, '-FLAGS', '\\SEEN')
                 try:
                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')

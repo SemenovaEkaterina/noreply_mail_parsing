@@ -82,9 +82,9 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'mail_parsing',
-        'USER': 'kate',
+        'USER': 'test',
         'PASSWORD': '123',
-        'HOST': 'localhost',
+        'HOST': '',
         'PORT': 3306,
         'OPTIONS': {'charset': 'utf8mb4'},
         #'TEST_CHARSET': 'utf8',
@@ -92,6 +92,7 @@ DATABASES = {
 }
 
 CONN_MAX_AGE = 5
+
 
 
 # Password validation
