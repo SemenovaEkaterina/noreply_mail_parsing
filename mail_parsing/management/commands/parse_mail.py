@@ -7,7 +7,6 @@ import sys
 
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
-from django.db import close_old_connections
 
 import mail_parsing.management.commands.scripts.header_parser as header_parser
 import mail_parsing.management.commands.scripts.message_parser as parser
@@ -150,10 +149,11 @@ class Command(BaseCommand):
 
         message_ids, mail = make_message_list('UNSEEN')
         # message_ids, mail = make_message_list('ALL')
+
         print(len(message_ids))
 
         min_id = os.environ.get('MIN_ID', 0)
-        max_id = os.environ.get('MAX_ID', 10000)
+        max_id = os.environ.get('MAX_ID', 1000000)
 
         for i in message_ids:
 
@@ -172,13 +172,18 @@ class Command(BaseCommand):
                     try:
                         mail.store(i, '-FLAGS', '\\SEEN')
                     except:
-                        pass
+                        print('FAILED STORE')
+                        sys.exit(1)
                     continue
 
                 try:
                     message = email.message_from_bytes(encoded_message[0][1])
                 except:
-                    mail.store(i, '-FLAGS', '\\SEEN')
+                    try:
+                        mail.store(i, '-FLAGS', '\\SEEN')
+                    except:
+                        print('FAILED STORE')
+                        sys.exit(1)
                     continue
 
                 go_next = False
@@ -233,7 +238,11 @@ class Command(BaseCommand):
                                                     detected_spam_chance=0)
                     except:
                         print("CANT SAVE_1 " + msg_num)
-                        mail.store(i, '-FLAGS', '\\SEEN')
+                        try:
+                            mail.store(i, '-FLAGS', '\\SEEN')
+                        except:
+                            print('FAILED STORE')
+                            sys.exit(1)
                         try:
                             r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                             r.write(message.as_bytes().decode(encoding='UTF-8'))
@@ -397,7 +406,11 @@ class Command(BaseCommand):
                                                         limit_exceed_chance=limit_exceed_chance,
                                                         detected_spam_chance=detected_spam_chance)
                         except:
-                            print("CANT SAVE_2 " + msg_num)
+                            try:
+                                print("CANT SAVE_2 " + msg_num)
+                            except:
+                                print('FAILED STORE')
+                                sys.exit(1)
                             mail.store(i, '-FLAGS', '\\SEEN')
                             try:
                                 r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -409,7 +422,11 @@ class Command(BaseCommand):
 
                     else:
                         print('NO ADDRESS')
-                        mail.store(i, '-FLAGS', '\\SEEN')
+                        try:
+                            mail.store(i, '-FLAGS', '\\SEEN')
+                        except:
+                            print('FAILED STORE')
+                            sys.exit(1)
                         try:
                             r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                             r.write(message.as_bytes().decode(encoding='UTF-8'))
@@ -447,7 +464,11 @@ class Command(BaseCommand):
                         try:
                             original = message.as_bytes().decode(encoding='UTF-8')
                         except:
-                            mail.store(i, '-FLAGS', '\\SEEN')
+                            try:
+                                mail.store(i, '-FLAGS', '\\SEEN')
+                            except:
+                                print('FAILED STORE')
+                                sys.exit(1)
                             print('CANT DECODE ORIGINAL '+msg_num)
                             continue
 
@@ -506,7 +527,11 @@ class Command(BaseCommand):
                             except:
                                 go_next = True
                                 print("CANT SAVE_3 "+msg_num)
-                                mail.store(i, '-FLAGS', '\\SEEN')
+                                try:
+                                    mail.store(i, '-FLAGS', '\\SEEN')
+                                except:
+                                    print('FAILED STORE')
+                                    sys.exit(1)
                                 try:
                                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                                     r.write(message.as_bytes().decode(encoding='UTF-8'))
@@ -521,7 +546,11 @@ class Command(BaseCommand):
                             except:
                                 go_next = True
                                 print("CANT SAVE_4 " + msg_num)
-                                mail.store(i, '-FLAGS', '\\SEEN')
+                                try:
+                                    mail.store(i, '-FLAGS', '\\SEEN')
+                                except:
+                                    print('FAILED STORE')
+                                    sys.exit(1)
                                 try:
                                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                                     r.write(message.as_bytes().decode(encoding='UTF-8'))
@@ -570,7 +599,11 @@ class Command(BaseCommand):
                                     pass
                         else:
                             if (part.get_content_type() == 'text/plain' or part.get_content_type() == 'text/html') and attachment_part == False:
-                                mail.store(i, '-FLAGS', '\\SEEN')
+                                try:
+                                    mail.store(i, '-FLAGS', '\\SEEN')
+                                except:
+                                    print('FAILED STORE')
+                                    sys.exit(1)
                                 print("NO DECODED_PART " + msg_num)
                                 try:
                                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -583,20 +616,29 @@ class Command(BaseCommand):
                         if part.get_content_type == 'text/plain' or part.get_content_type() == 'text/html' \
                                 or header_parser.header_parse(part, 'Content-Disposition') == 'attachment':
                             print("NO PAYLOAD "+msg_num)
-                            mail.store(i, '-FLAGS', '\\SEEN')
+                            try:
+                                mail.store(i, '-FLAGS', '\\SEEN')
+                            except:
+                                print('FAILED STORE')
+                                sys.exit(1)
                             try:
                                 r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                                 r.write(message.as_bytes().decode(encoding='UTF-8'))
                                 r.close()
                             except:
                                 pass
-                            continue
+                            go_next = True
+                            break
 
                 if go_next:
                     continue
 
                 if not len(parts) and not attachment_part:
-                    mail.store(i, '-FLAGS', '\\SEEN')
+                    try:
+                        mail.store(i, '-FLAGS', '\\SEEN')
+                    except:
+                        print('FAILED STORE')
+                        sys.exit(1)
                     print('FILTERED: no correct parts')
                     try:
                         r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
@@ -620,7 +662,11 @@ class Command(BaseCommand):
                             message_object.save()
                         except:
                             print("CANT SAVE_5 " + msg_num)
-                            mail.store(i, '-FLAGS', '\\SEEN')
+                            try:
+                                mail.store(i, '-FLAGS', '\\SEEN')
+                            except:
+                                print('FAILED STORE')
+                                sys.exit(1)
                             try:
                                 r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                                 r.write(message.as_bytes().decode(encoding='UTF-8'))
@@ -636,7 +682,11 @@ class Command(BaseCommand):
                         message_object.save()
                     except:
                         print("CANT SAVE_6 " + msg_num)
-                        mail.store(i, '-FLAGS', '\\SEEN')
+                        try:
+                            mail.store(i, '-FLAGS', '\\SEEN')
+                        except:
+                            print('FAILED STORE')
+                            sys.exit(1)
                         try:
                             r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                             r.write(message.as_bytes().decode(encoding='UTF-8'))
@@ -644,8 +694,15 @@ class Command(BaseCommand):
                         except:
                             pass
                         continue
+            except SystemExit:
+                print("ERROR EXIT")
+                break
             except:
-                mail.store(i, '-FLAGS', '\\SEEN')
+                try:
+                    mail.store(i, '-FLAGS', '\\SEEN')
+                except:
+                    print('FAILED STORE')
+                    sys.exit(1)
                 try:
                     r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
                     r.write(message.as_bytes().decode(encoding='UTF-8'))
@@ -654,6 +711,8 @@ class Command(BaseCommand):
                     pass
                 print("UNDEFINED ERROR")
 
-
-        mail.close()
-        mail.logout()
+        try:
+            mail.close()
+            mail.logout()
+        except:
+            pass

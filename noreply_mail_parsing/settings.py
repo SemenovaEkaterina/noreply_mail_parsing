@@ -84,7 +84,7 @@ DATABASES = {
         'NAME': 'mail_parsing',
         'USER': 'test',
         'PASSWORD': '123',
-        'HOST': '',
+        'HOST': '138.68.162.102',
         'PORT': 3306,
         'OPTIONS': {'charset': 'utf8mb4'},
         #'TEST_CHARSET': 'utf8',
@@ -92,7 +92,6 @@ DATABASES = {
 }
 
 CONN_MAX_AGE = 5
-
 
 
 # Password validation
