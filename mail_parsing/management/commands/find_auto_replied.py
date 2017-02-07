@@ -24,8 +24,8 @@ class Command(BaseCommand):
         message_ids, mail = make_message_list('FROM "MAILER-DAEMON" UNSEEN')
         # message_ids, mail = make_message_list('FROM "MAILER-DAEMON"')
 
-        min_id = os.environ.get('MIN_ID', 20000)
-        max_id = os.environ.get('MAX_ID', 40000)
+        min_id = os.environ.get('MIN_ID', 0)
+        max_id = os.environ.get('MAX_ID', 1000000)
 
         for i in message_ids:
 
