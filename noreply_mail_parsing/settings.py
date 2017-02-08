@@ -82,9 +82,9 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'mail_parsing',
-        'USER': 'test',
+        'USER': 'kate',
         'PASSWORD': '123',
-        'HOST': '138.68.162.102',
+        'HOST': 'localhost',
         'PORT': 3306,
         'OPTIONS': {'charset': 'utf8mb4'},
         #'TEST_CHARSET': 'utf8',

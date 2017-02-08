@@ -30,6 +30,12 @@ class Message(models.Model):
     quote = models.TextField(default='')
     original = models.TextField(default='')
 
+    class Meta:
+        index_together = [
+            ['id', 'status'],
+            ['id', 'status', 'type'],
+        ]
+
 
 class Attachment(models.Model):
     file = models.FileField(upload_to=upload_to, blank=False)
