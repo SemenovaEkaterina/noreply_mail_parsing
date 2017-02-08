@@ -4,8 +4,13 @@ from noreply_mail_parsing.settings import BASE_DIR, MEDIA_ROOT
 from django.http import HttpResponse
 import json
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.http import HttpResponseRedirect
+from django.contrib import auth
+from .forms import LoginForm
+from django.contrib.auth.decorators import login_required
 
 
+@login_required(login_url='/login/')
 def invalid(request):
     addresses = EmailAddress.objects.all()
     count = addresses.count()
@@ -15,6 +20,7 @@ def invalid(request):
                                                       'count': count})
 
 
+@login_required(login_url='/login/')
 def message(request, id):
     message = Message.objects.get(id=id)
     files = Attachment.objects.filter(message=message)
@@ -23,47 +29,20 @@ def message(request, id):
         list_status = request.GET.get('status')
         if request.GET.get('type') is not None:
             list_type = request.GET.get('type')
-            next_id = Message.objects.filter(type=list_type, status=list_status, id__lt=message.id).order_by(
-                '-id')
-            if next_id.count() > 0:
-                next_id = next_id[0].id
-            else:
-                next_id = -1
-            prev_id = Message.objects.filter(type=list_type, status=list_status, id__gt=message.id).order_by('id')
-            if prev_id.count() > 0:
-                prev_id = prev_id[0].id
-            else:
-                prev_id = -1
         else:
             list_type = -1
-
-            next_id = Message.objects.filter(status=list_status, id__lt=message.id).order_by(
-                '-id')
-            if next_id.count() > 0:
-                next_id = next_id[0].id
-            else:
-                next_id = -1
-            prev_id = Message.objects.filter(status=list_status, id__gt=message.id).order_by('id')
-            if prev_id.count() > 0:
-                prev_id = prev_id[0].id
-            else:
-                prev_id = -1
     else:
         list_status = -1
         list_type = -1
-        next_id = -1
-        prev_id = -1
-
 
     return render(request, 'message.html', {'message': message,
                                             'files': files,
                                             'path': 'file://'+MEDIA_ROOT+'/',
-                                            'next': next_id,
-                                            'prev': prev_id,
                                             'list_type': list_type,
                                             'list_status': list_status})
 
 
+@login_required(login_url='/login/')
 def response_messages(request):
     type_of_list = '?'
     for param in request.GET.keys():
@@ -77,6 +56,7 @@ def response_messages(request):
                                           'type_of_list': type_of_list})
 
 
+@login_required(login_url='/login/')
 def other_messages(request):
     type_of_list = '?'
     for param in request.GET.keys():
@@ -90,6 +70,7 @@ def other_messages(request):
                                           'type_of_list': type_of_list})
 
 
+@login_required(login_url='/login/')
 def accepted(request):
     type_of_list = '?'
     for param in request.GET.keys():
@@ -103,6 +84,7 @@ def accepted(request):
                                           'type_of_list': type_of_list})
 
 
+@login_required(login_url='/login/')
 def unaccepted(request):
     type_of_list = '?'
     for param in request.GET.keys():
@@ -115,6 +97,8 @@ def unaccepted(request):
                                           'count': count,
                                           'type_of_list': type_of_list})
 
+
+@login_required(login_url='/login/')
 def accept(request):
     id = request.POST.get('id')
     message_object = Message.objects.get(id=id)
@@ -127,6 +111,7 @@ def accept(request):
     )
 
 
+@login_required(login_url='/login/')
 def not_accept(request):
     id = request.POST.get('id')
     message_object = Message.objects.get(id=id)
@@ -137,6 +122,76 @@ def not_accept(request):
         json.dumps(response_data),
         content_type="application/json"
     )
+
+@login_required(login_url='/login/')
+def next(request, current_id):
+    type_of_list = '?'
+    if request.GET.get('status') is not None:
+        list_status = request.GET.get('status')
+        type_of_list += 'status=' + list_status + '&'
+        if request.GET.get('type') is not None:
+            list_type = request.GET.get('type')
+            type_of_list += 'type=' + list_type + '&'
+            try:
+                next_id = Message.objects.filter(type=list_type, status=list_status, id__lt=current_id).order_by(
+                '-id')[0].id
+            except IndexError:
+                return HttpResponseRedirect('/')
+        else:
+            list_type = -1
+
+            try:
+                next_id = Message.objects.filter(status=list_status, id__lt=current_id).order_by(
+                    '-id')[0].id
+            except IndexError:
+                return HttpResponseRedirect('/')
+    else:
+        next_id = current_id
+
+    return HttpResponseRedirect('/message/'+str(next_id)+str(type_of_list))
+
+@login_required(login_url='/login/')
+def prev(request, current_id):
+    type_of_list = '?'
+    if request.GET.get('status') is not None:
+        list_status = request.GET.get('status')
+        type_of_list += 'status=' + list_status + '&'
+        if request.GET.get('type') is not None:
+            list_type = request.GET.get('type')
+            type_of_list += 'type=' + list_type + '&'
+            try:
+                prev_id = Message.objects.filter(type=list_type, status=list_status, id__gt=current_id).order_by(
+                'id')[0].id
+            except IndexError:
+                return HttpResponseRedirect('/')
+        else:
+            list_type = -1
+
+            try:
+                prev_id = Message.objects.filter(status=list_status, id__gt=current_id).order_by(
+                    'id')[0].id
+            except IndexError:
+                return HttpResponseRedirect('/')
+    else:
+        prev_id = current_id
+
+    return HttpResponseRedirect('/message/'+str(prev_id)+str(type_of_list))
+
+
+def login(request):
+    if request.method == 'POST':
+        form = LoginForm(request.POST)
+        if form.is_valid():
+            user = auth.authenticate(username=form.cleaned_data['login'],
+                                     password=form.cleaned_data['password'])
+            if user is not None:
+                auth.login(request, user)
+                return HttpResponseRedirect(str('/'))
+            else:
+                form.add_error(None, 'invalid login/password')
+    else:
+        form = LoginForm()
+    return render(request, 'login.html', {'form': form})
 
 
 def paginate(objects_list, request):

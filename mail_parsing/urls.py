@@ -13,6 +13,9 @@ urlpatterns = [
     url(r'^response/$', views.response_messages, name='response'),
     url(r'^accept/$', views.accept, name='accept'),
     url(r'^not_accept/$', views.not_accept, name='not_accept'),
+    url(r'^next/([0-9]+)/$', views.next, name='next'),
+    url(r'^prev/([0-9]+)/$', views.prev, name='prev'),
+    url(r'^login/$', views.login, name="login"),
     url(r'^$', views.invalid),
 ]
 

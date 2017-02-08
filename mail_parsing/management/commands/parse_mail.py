@@ -155,6 +155,9 @@ class Command(BaseCommand):
         min_id = os.environ.get('MIN_ID', 0)
         max_id = os.environ.get('MAX_ID', 1000000)
 
+        max_count = os.environ.get('MAX_COUNT', 1000)
+        count = 0
+
         for i in message_ids:
 
             try:
@@ -162,6 +165,11 @@ class Command(BaseCommand):
 
                 if int(msg_num) <= int(min_id) or int(msg_num) > int(max_id):
                     continue
+
+                if count > max_count:
+                    break
+
+                ++count
 
                 # print()
                 # print(i)
