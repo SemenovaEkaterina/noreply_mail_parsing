@@ -23,6 +23,7 @@ def invalid(request):
 @login_required(login_url='/login/')
 def message(request, id):
     message = Message.objects.get(id=id)
+    original = message.original[:4000]
     files = Attachment.objects.filter(message=message)
 
     if request.GET.get('status') is not None:
@@ -39,7 +40,8 @@ def message(request, id):
                                             'files': files,
                                             'path': 'file://'+MEDIA_ROOT+'/',
                                             'list_type': list_type,
-                                            'list_status': list_status})
+                                            'list_status': list_status,
+                                            'original': original})
 
 
 @login_required(login_url='/login/')

@@ -22,10 +22,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
 
         message_ids, mail = make_message_list('FROM "MAILER-DAEMON" UNSEEN')
-        # message_ids, mail = make_message_list('FROM "MAILER-DAEMON"')
 
         min_id = os.environ.get('MIN_ID', 0)
         max_id = os.environ.get('MAX_ID', 1000000)
+
+        max_count = os.environ.get('MAX_COUNT', 1000)
+        count = 0
 
         for i in message_ids:
 
@@ -33,6 +35,11 @@ class Command(BaseCommand):
 
             if int(msg_num) <= int(min_id) or int(msg_num) > int(max_id):
                 continue
+
+            if count > max_count:
+                break
+
+            count += 1
 
             # print()
             # print(i)

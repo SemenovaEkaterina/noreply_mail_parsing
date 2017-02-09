@@ -1,9 +1,9 @@
 import email
-import imaplib
 import os
 import re
 import signal
 import sys
+from datetime import datetime
 
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
@@ -137,20 +137,31 @@ OVER_QUOTA_STATUS = [
     '5.7.0',  # maildir over quota
 ]
 
-# SPAM
-
 
 def parse_timeout_signal_handler(signum, frame):
     raise Exception("Time Out")
 
 
+def write_error_original(msg, num):
+    try:
+        r = open('error_messages/original_' + str(num) + '.txt', 'w')
+        r.write(msg.as_bytes().decode(encoding='UTF-8'))
+        r.close()
+    except:
+        pass
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
 
-        message_ids, mail = make_message_list('UNSEEN')
-        # message_ids, mail = make_message_list('ALL')
+        errors_file = open('errors.txt', 'a')
+        message_ids, mail, result = make_message_list('UNSEEN')
+        if result != 'OK':
+            errors_file.write(str(datetime.now()) + ' ' + result + '\n')
+            errors_file.close()
+            sys.exit(1)
 
-        print(len(message_ids))
+        # print(len(message_ids))
 
         min_id = os.environ.get('MIN_ID', 0)
         max_id = os.environ.get('MAX_ID', 1000000)
@@ -169,7 +180,7 @@ class Command(BaseCommand):
                 if count > max_count:
                     break
 
-                ++count
+                count += 1
 
                 # print()
                 # print(i)
@@ -180,17 +191,17 @@ class Command(BaseCommand):
                     try:
                         mail.store(i, '-FLAGS', '\\SEEN')
                     except:
-                        print('FAILED STORE')
                         sys.exit(1)
                     continue
 
                 try:
                     message = email.message_from_bytes(encoded_message[0][1])
                 except:
+                    errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to get message from bytes ' + str(msg_num) + '\n')
+                    write_error_original(message, msg_num)
                     try:
                         mail.store(i, '-FLAGS', '\\SEEN')
                     except:
-                        print('FAILED STORE')
                         sys.exit(1)
                     continue
 
@@ -245,18 +256,12 @@ class Command(BaseCommand):
                                                     limit_exceed_chance=limit_exceed_chance,
                                                     detected_spam_chance=0)
                     except:
-                        print("CANT SAVE_1 " + msg_num)
+                        errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to save EmailAddress ' + str(msg_num) + '\n')
+                        write_error_original(message, msg_num)
                         try:
                             mail.store(i, '-FLAGS', '\\SEEN')
                         except:
-                            print('FAILED STORE')
                             sys.exit(1)
-                        try:
-                            r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                            r.write(message.as_bytes().decode(encoding='UTF-8'))
-                            r.close()
-                        except:
-                            pass
                     continue
 
                 if header_parser.header_parse(message, 'X-Mailer-Daemon-Error') == 'user_not_found':
@@ -348,14 +353,13 @@ class Command(BaseCommand):
                     for part in message.walk():
                         payload = part.get_payload(decode=True)
                         if payload is not None:
-                            # + text/html
+                            # + text/html ?
                             if part.get_content_type() == 'text/plain':
                                 charset = part.get_content_charset(failobj=None)
                                 if charset is not None:
                                     try:
                                         decoded_part = payload.decode(str(charset), "ignore")
                                     except LookupError:
-                                        print('FAIL: unknown charset')
                                         decoded_part = payload.decode()
                                 else:
                                     decoded_part = str(payload)
@@ -375,7 +379,7 @@ class Command(BaseCommand):
                                     address_list = re.findall(r'[\w\.-]+@[\w\.-]+', decoded_part)
 
                                     for address in address_list:
-                                        # print(address)
+
                                         address = address.strip('<>').lower()
                                         daemon_address = False
 
@@ -388,13 +392,7 @@ class Command(BaseCommand):
                                             invalid_list.append(address)
 
                     if len(invalid_list) != 1 and address is None:
-                        print("ERRROR: not one invalid address in text")
-                        try:
-                            r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                            r.write(message.as_bytes().decode(encoding='UTF-8'))
-                            r.close()
-                        except:
-                            pass
+                        # print("ERRROR: not one invalid address in text")
                         continue
 
                     if len(invalid_list) == 1 and address is None:
@@ -415,32 +413,20 @@ class Command(BaseCommand):
                                                         detected_spam_chance=detected_spam_chance)
                         except:
                             try:
-                                print("CANT SAVE_2 " + msg_num)
+                                errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to save EmailAddress ' + str(msg_num) + '\n')
+                                write_error_original(message, msg_num)
+                                mail.store(i, '-FLAGS', '\\SEEN')
                             except:
-                                print('FAILED STORE')
                                 sys.exit(1)
-                            mail.store(i, '-FLAGS', '\\SEEN')
-                            try:
-                                r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                                r.write(message.as_bytes().decode(encoding='UTF-8'))
-                                r.close()
-                            except:
-                                pass
                         continue
 
                     else:
-                        print('NO ADDRESS')
+                        errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to find EmailAddress ' + str(msg_num) + '\n')
+                        write_error_original(msg_num)
                         try:
                             mail.store(i, '-FLAGS', '\\SEEN')
                         except:
-                            print('FAILED STORE')
                             sys.exit(1)
-                        try:
-                            r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                            r.write(message.as_bytes().decode(encoding='UTF-8'))
-                            r.close()
-                        except:
-                            pass
                         continue
 
                 parts = []
@@ -475,9 +461,9 @@ class Command(BaseCommand):
                             try:
                                 mail.store(i, '-FLAGS', '\\SEEN')
                             except:
-                                print('FAILED STORE')
                                 sys.exit(1)
-                            print('CANT DECODE ORIGINAL '+msg_num)
+                                errors_file.write(
+                                    str(datetime.now()) + ' ' + 'ERROR: failed to decode original ' + str(msg_num) + '\n')
                             continue
 
                 message_object = Message(msg_from=message_from,
@@ -512,7 +498,6 @@ class Command(BaseCommand):
                             else:
                                 try:
                                     file_format = '.' + part.get_subtype()
-                                    print('GET_SUBTYPE: ' + file_format)
                                 except:
                                     file_format = ''
                                 file_name = '1' + file_format
@@ -524,7 +509,6 @@ class Command(BaseCommand):
                                 except:
                                     try:
                                         file_format = '.' + part.get_subtype()
-                                        print('GET_SUBTYPE: ' + file_format)
                                     except:
                                         file_format = ''
                                     file_name = '1' + file_format
@@ -534,18 +518,13 @@ class Command(BaseCommand):
                                 message_object.save()
                             except:
                                 go_next = True
-                                print("CANT SAVE_3 "+msg_num)
+                                errors_file.write(
+                                    str(datetime.now()) + ' ' + 'ERROR: failed to save message ' + str(msg_num) + '\n')
                                 try:
                                     mail.store(i, '-FLAGS', '\\SEEN')
                                 except:
-                                    print('FAILED STORE')
                                     sys.exit(1)
-                                try:
-                                    r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                                    r.write(message.as_bytes().decode(encoding='UTF-8'))
-                                    r.close()
-                                except:
-                                    pass
+                                write_error_original(message, msg_num)
 
                             at = Attachment()
                             at.message = message_object
@@ -553,18 +532,13 @@ class Command(BaseCommand):
                                 at.file.save(str(message_object.id) + '_' + file_name, ContentFile(payload))
                             except:
                                 go_next = True
-                                print("CANT SAVE_4 " + msg_num)
+                                errors_file.write(
+                                    str(datetime.now()) + ' ' + 'ERROR: failed to save attachment ' + str(msg_num) + '\n')
                                 try:
                                     mail.store(i, '-FLAGS', '\\SEEN')
                                 except:
-                                    print('FAILED STORE')
                                     sys.exit(1)
-                                try:
-                                    r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                                    r.write(message.as_bytes().decode(encoding='UTF-8'))
-                                    r.close()
-                                except:
-                                    pass
+                                write_error_original(message, msg_num)
 
                         if decoded_part is not None and attachment_part is False:
                             try:
@@ -577,16 +551,14 @@ class Command(BaseCommand):
                                         parsed_plain = parser.parse(decoded_part)
                                         signal.alarm(0)
                                     except Exception:
-                                        print("Error: Time Out")
+                                        errors_file.write(
+                                            str(datetime.now()) + ' ' + 'ERROR: plain parse time out ' + str(msg_num) + '\n')
                                         continue
 
 
                             except TypeError:
-                                print('FAIL: TypeError')
-                                try:
-                                    parts.append(decoded_part.decode())
-                                except:
-                                    pass
+                                errors_file.write(
+                                    str(datetime.now()) + ' ' + 'ERROR: typeError ' + str(msg_num) + '\n')
 
                             try:
                                 if part.get_content_type() == 'text/html' and attachment_part == False:
@@ -597,44 +569,34 @@ class Command(BaseCommand):
                                         parsed_html = parser.parse_html(decoded_part)
                                         signal.alarm(0)
                                     except Exception:
-                                        print("Error: Time Out")
+                                        errors_file.write(
+                                            str(datetime.now()) + ' ' + 'ERROR: plain parse time out ' + str(
+                                                msg_num) + '\n')
                                         continue
                             except TypeError:
-                                print('FAIL: TypeError')
-                                try:
-                                    parts.append(decoded_part.decode())
-                                except:
-                                    pass
+                                errors_file.write(
+                                    str(datetime.now()) + ' ' + 'ERROR: typeError ' + str(msg_num) + '\n')
+
                         else:
                             if (part.get_content_type() == 'text/plain' or part.get_content_type() == 'text/html') and attachment_part == False:
+                                write_error_original(message, msg_num)
+                                errors_file.write(
+                                    str(datetime.now()) + ' ' + 'ERROR: no decoded part ' + str(msg_num) + '\n')
                                 try:
                                     mail.store(i, '-FLAGS', '\\SEEN')
                                 except:
-                                    print('FAILED STORE')
                                     sys.exit(1)
-                                print("NO DECODED_PART " + msg_num)
-                                try:
-                                    r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                                    r.write(message.as_bytes().decode(encoding='UTF-8'))
-                                    r.close()
-                                except:
-                                    pass
                                 continue
                     else:
                         if part.get_content_type == 'text/plain' or part.get_content_type() == 'text/html' \
                                 or header_parser.header_parse(part, 'Content-Disposition') == 'attachment':
-                            print("NO PAYLOAD "+msg_num)
+                            errors_file.write(
+                                str(datetime.now()) + ' ' + 'ERROR: no payload ' + str(msg_num) + '\n')
+                            write_error_original(message, msg_num)
                             try:
                                 mail.store(i, '-FLAGS', '\\SEEN')
                             except:
-                                print('FAILED STORE')
                                 sys.exit(1)
-                            try:
-                                r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                                r.write(message.as_bytes().decode(encoding='UTF-8'))
-                                r.close()
-                            except:
-                                pass
                             go_next = True
                             break
 
@@ -642,22 +604,16 @@ class Command(BaseCommand):
                     continue
 
                 if not len(parts) and not attachment_part:
+                    errors_file.write(
+                        str(datetime.now()) + ' ' + 'ERROR: no correct parts ' + str(msg_num) + '\n')
+                    write_error_original(message, msg_num)
                     try:
                         mail.store(i, '-FLAGS', '\\SEEN')
                     except:
-                        print('FAILED STORE')
                         sys.exit(1)
-                    print('FILTERED: no correct parts')
-                    try:
-                        r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                        r.write(message.as_bytes().decode(encoding='UTF-8'))
-                        r.close()
-                    except:
-                        pass
                     continue
 
-                print('OK: ' + msg_num)
-
+                # print('OK: ' + str(msg_num))
 
                 if parsed_html is None:
                     if parsed_plain is not None:
@@ -669,18 +625,13 @@ class Command(BaseCommand):
                         try:
                             message_object.save()
                         except:
-                            print("CANT SAVE_5 " + msg_num)
+                            write_error_original(message, msg_num)
+                            errors_file.write(
+                                str(datetime.now()) + ' ' + 'ERROR: failed to save message ' + str(msg_num) + '\n')
                             try:
                                 mail.store(i, '-FLAGS', '\\SEEN')
                             except:
-                                print('FAILED STORE')
                                 sys.exit(1)
-                            try:
-                                r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                                r.write(message.as_bytes().decode(encoding='UTF-8'))
-                                r.close()
-                            except:
-                                pass
                             continue
                 else:
                     message_object.text = parsed_html[0]
@@ -689,36 +640,29 @@ class Command(BaseCommand):
                     try:
                         message_object.save()
                     except:
-                        print("CANT SAVE_6 " + msg_num)
+                        write_error_original(message, msg_num)
+                        errors_file.write(
+                            str(datetime.now()) + ' ' + 'ERROR: failed to save message ' + str(msg_num) + '\n')
                         try:
                             mail.store(i, '-FLAGS', '\\SEEN')
                         except:
-                            print('FAILED STORE')
                             sys.exit(1)
-                        try:
-                            r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                            r.write(message.as_bytes().decode(encoding='UTF-8'))
-                            r.close()
-                        except:
-                            pass
                         continue
             except SystemExit:
-                print("ERROR EXIT")
+                errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to mark unseen' + '\n')
+                errors_file.close()
                 break
             except:
                 try:
                     mail.store(i, '-FLAGS', '\\SEEN')
                 except:
-                    print('FAILED STORE')
+                    errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to mark unseen' + '\n')
+                    errors_file.close()
                     sys.exit(1)
-                try:
-                    r = open('res/full_messages/' + str(msg_num) + '.txt', 'w+')
-                    r.write(message.as_bytes().decode(encoding='UTF-8'))
-                    r.close()
-                except:
-                    pass
-                print("UNDEFINED ERROR")
+                write_error_original(message, msg_num)
+                errors_file.write(str(datetime.now()) + ' ' + 'ERROR: undefined_error' + '\n')
 
+        errors_file.close()
         try:
             mail.close()
             mail.logout()
