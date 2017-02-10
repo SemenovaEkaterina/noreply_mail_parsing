@@ -205,8 +205,9 @@ class Command(BaseCommand):
                         sys.exit(1)
                     continue
 
-                if header_parser.header_parse('X-SPAM-FLAG') == 'YES':
+                if header_parser.header_parse(message, 'X-SPAM-FLAG') == 'YES':
                     continue
+
 
                 go_next = False
 
@@ -621,7 +622,6 @@ class Command(BaseCommand):
                     continue
 
                 # print('OK: ' + str(msg_num))
-                mail.store(i, '-FLAGS', '\\SEEN')
 
                 if parsed_html is None:
                     if parsed_plain is not None:
