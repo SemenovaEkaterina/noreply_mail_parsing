@@ -148,7 +148,6 @@ post_patterns = [
 def parse_html(html, charset):
     my_parser = TextFromHTML(charset)
     my_parser.feed(html)
-    print(my_parser.text)
     return parse(my_parser.text)
 
 
