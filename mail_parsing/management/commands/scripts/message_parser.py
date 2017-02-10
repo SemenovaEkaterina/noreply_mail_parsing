@@ -3,10 +3,11 @@ from html.parser import HTMLParser
 
 
 class TextFromHTML(HTMLParser):
-    def __init__(self):
+    def __init__(self, charset):
         HTMLParser.__init__(self)
         self.text = ''
         self.style = False
+        self.charset = charset
 
     def handle_starttag(self, tag, attrs):
         if tag == 'style':
@@ -26,7 +27,10 @@ class TextFromHTML(HTMLParser):
 
     def handle_data(self, data):
         if self.style == False:
-            self.text += data
+            if self.charset is not None:
+                self.text += data.decoge(self.charset)
+            else:
+                self.text += data
 
     def handle_comment(self, data):
         pass
@@ -141,9 +145,10 @@ post_patterns = [
 ]
 
 
-def parse_html(html):
-    my_parser = TextFromHTML()
+def parse_html(html, charset):
+    my_parser = TextFromHTML(charset)
     my_parser.feed(html)
+    print(my_parser.text)
     return parse(my_parser.text)
 
 

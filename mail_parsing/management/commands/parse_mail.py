@@ -177,7 +177,7 @@ class Command(BaseCommand):
                 if int(msg_num) <= int(min_id) or int(msg_num) > int(max_id):
                     continue
 
-                if count > max_count:
+                if count > int(max_count):
                     break
 
                 count += 1
@@ -203,6 +203,9 @@ class Command(BaseCommand):
                         mail.store(i, '-FLAGS', '\\SEEN')
                     except:
                         sys.exit(1)
+                    continue
+
+                if header_parser.header_parse('X-SPAM-FLAG') == 'YES':
                     continue
 
                 go_next = False
@@ -362,6 +365,10 @@ class Command(BaseCommand):
                                     except LookupError:
                                         decoded_part = payload.decode()
                                 else:
+                                    try:
+                                        decoded_part = payload.decode()
+                                    except:
+                                        pass
                                     decoded_part = str(payload)
 
                                 if decoded_part is None:
@@ -566,7 +573,7 @@ class Command(BaseCommand):
                                     signal.signal(signal.SIGALRM, parse_timeout_signal_handler)
                                     signal.alarm(50)
                                     try:
-                                        parsed_html = parser.parse_html(decoded_part)
+                                        parsed_html = parser.parse_html(decoded_part, charset)
                                         signal.alarm(0)
                                     except Exception:
                                         errors_file.write(
@@ -614,6 +621,7 @@ class Command(BaseCommand):
                     continue
 
                 # print('OK: ' + str(msg_num))
+                mail.store(i, '-FLAGS', '\\SEEN')
 
                 if parsed_html is None:
                     if parsed_plain is not None:
