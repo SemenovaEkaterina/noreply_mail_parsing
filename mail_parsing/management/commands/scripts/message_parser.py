@@ -28,7 +28,11 @@ class TextFromHTML(HTMLParser):
 
     def handle_data(self, data):
         if self.style == False:
-            self.text += html.unescape(data)
+            try:
+                data = html.unescape(data)
+            except:
+                pass
+            self.text += data
 
     def handle_comment(self, data):
         pass
