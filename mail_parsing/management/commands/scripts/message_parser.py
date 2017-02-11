@@ -28,10 +28,6 @@ class TextFromHTML(HTMLParser):
 
     def handle_data(self, data):
         if self.style == False:
-            try:
-                data = html.unescape(data)
-            except:
-                pass
             self.text += data
 
     def handle_comment(self, data):
@@ -154,9 +150,9 @@ post_patterns = [
 ]
 
 
-def parse_html(html, charset):
+def parse_html(html_text, charset):
     my_parser = TextFromHTML(charset)
-    my_parser.feed(html)
+    my_parser.feed(html.unescape(html_text))
     return parse(my_parser.text)
 
 
