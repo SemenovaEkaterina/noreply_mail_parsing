@@ -117,14 +117,14 @@ quote_patterns = [
 
 datetime_patterns = [
     (re.compile(r'\n.*Исходное сообщение.*\n*.*[\n]+Дата: ?.+[\n]+Кому: ?.+[\n]+Тема: ?.+\n'), '\n'),
-    (re.compile(r'\nFrom: ?.+Sent: ?.+To: ?.+Subject: ?.+Importance: ?.+\n', re.DOTALL), '\n'),
+    (re.compile(r'\nFrom: ?.+Sent: ?.+To: ?.+Subject: ?.+(Importance: ?.+)?\n', re.DOTALL), '\n'),
     (re.compile(r'\nОт: ?.+Отправлено: ?.+Кому: ?.+Тема: ?.+\n', re.DOTALL),'\n'),
     (re.compile(r'\n.+20\d\d ?г., \d{1,2}:\d\d пользователь.+<.+@.+\..+> ?[\n]? ?написал:.+\n'), '\n'),
     (re.compile(r'\n.+[П,п]ользователь.+Электронный журнал.+[\n]? ?написал.+\n'), '\n'),
     (re.compile(r'\n\d\d\.\d\d\.20\d\d \d?\d:\d\d, Электронный журнал.*[\n]? ?пишет:.*\n'), '\n'),
     (re.compile(r'\n.+Электронный журнал.+noreply@eljur.ru.*\n'), '\n'),
     (re.compile(r'\nЭлектронный журнал.+noreply@eljur.ru.*20\d\d ?г\..+Сообщение:.*\n'), '\n'),
-    (re.compile(r'\n.+ 20\d\d ?г?\.?,? \d?\d:\d\d .+ от( Электронный журнал)? .+noreply@eljur.ru.+:.*\n'), '\n'),
+    (re.compile(r'\n.+ 20\d\d ?г?\.?,? \d?\d:\d\d .+ от( Электронный журнал)? (.+noreply@eljur.ru.+)?:.*\n'), '\n'),
 ]
 
 pre_patterns = [
