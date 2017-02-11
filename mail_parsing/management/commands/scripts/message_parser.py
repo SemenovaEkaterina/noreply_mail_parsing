@@ -1,5 +1,6 @@
 import re
 from html.parser import HTMLParser
+import html
 
 
 class TextFromHTML(HTMLParser):
@@ -27,13 +28,7 @@ class TextFromHTML(HTMLParser):
 
     def handle_data(self, data):
         if self.style == False:
-            if self.charset is not None:
-                try:
-                    self.text += data.decode(self.charset)
-                except AttributeError:
-                    self.text += data
-            else:
-                self.text += data
+            self.text += html.unescape(data)
 
     def handle_comment(self, data):
         pass
