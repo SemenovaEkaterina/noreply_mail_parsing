@@ -16,7 +16,7 @@ class TextFromHTML(HTMLParser):
             for attr in attrs:
                 if attr[0] == 'href':
                     self.text += ' ' + attr[1] + ' - '
-        if tag == 'br'or tag == 'br /' or tag == 'div' or tag == 'p':
+        if tag == 'br' or tag == 'br /' or tag == 'div' or tag == 'p':
             self.text += '\n'
 
     def handle_endtag(self, tag):
@@ -28,7 +28,10 @@ class TextFromHTML(HTMLParser):
     def handle_data(self, data):
         if self.style == False:
             if self.charset is not None:
-                self.text += data.decoge(self.charset)
+                try:
+                    self.text += data.decode(self.charset)
+                except AttributeError:
+                    self.text += data
             else:
                 self.text += data
 
@@ -107,14 +110,19 @@ post_patterns = [
     (re.compile(r'\n ?Получите и Вы свой бесплатный электронный адрес на .+\n'), '\n'),
 ]
 '''
-quote_pattern = re.compile(r'\n[^\n]+ написала?.?вам.?сообщение.?в.+Электронном.+журнале.+школы.*№.+:.*'
+quote_patterns = [
+    re.compile(r'\n[^\n]+ ?\n?написала?.+вам.+сообщение.+в.+Электронном.+журнале.+школы.*№.+:.*'
                              r'Это.+автоматическое.+уведомление,.+и.+на.+него.+не.+следует.+отвечать\..+'
                              r'Чтобы.+ответить.+отправителю,.+войдите.+в.+Электронный.+журнал.+https://.+\.eljur\.ru',
+                           re.DOTALL),
+    re.compile(r'Это.+автоматическое.+уведомление,.+и.+на.+него.+не.+следует.+отвечать\..+'
+                             r'Чтобы.+ответить.+отправителю,.+войдите.+в.+Электронный.+журнал.+https://.+\.eljur\.ru',
                            re.DOTALL)
+]
 
 datetime_patterns = [
     (re.compile(r'\n.*Исходное сообщение.*\n*.*[\n]+Дата: ?.+[\n]+Кому: ?.+[\n]+Тема: ?.+\n'), '\n'),
-    (re.compile(r'\nSent: ?.+To: ?.+Subject: ?.+\n', re.DOTALL), '\n'),
+    (re.compile(r'\nFrom: ?.+Sent: ?.+To: ?.+Subject: ?.+Importance: ?.+\n', re.DOTALL), '\n'),
     (re.compile(r'\nОт: ?.+Отправлено: ?.+Кому: ?.+Тема: ?.+\n', re.DOTALL),'\n'),
     (re.compile(r'\n.+20\d\d ?г., \d{1,2}:\d\d пользователь.+<.+@.+\..+> ?[\n]? ?написал:.+\n'), '\n'),
     (re.compile(r'\n.+[П,п]ользователь.+Электронный журнал.+[\n]? ?написал.+\n'), '\n'),
@@ -135,9 +143,11 @@ pre_patterns = [
 post_patterns = [
     (re.compile(r'\n ?Отправлено с[о]? .+\n'), '\n'),
     (re.compile(r'\n ?Отправлено из .+\n'), '\n'),
+    (re.compile(r'\n ?Отправлено через .+\n'), '\n'),
     (re.compile(r'\n.+ ?Sent from .+\n'), '\n'),
     (re.compile(r'\n---? ?\n'), '\n'),
-    (re.compile(r'>?[\s]*---? ?'), '>\n'),
+    (re.compile(r'>[\s]*---? ?'), '>\n'),
+    (re.compile(r'[\s]*---? ?'), '\n'),
     (re.compile(r'\s*\n'), '\n'),
     (re.compile(r'\n{2,}'), '\n'),
     (re.compile(r'\n ?Получите и Вы свой бесплатный электронный адрес на .+\n'), '\n'),
@@ -158,17 +168,21 @@ def parse(text):
     for pattern in pre_patterns:
         text = pattern[0].sub(pattern[1], text)
 
-    quote = re.search(quote_pattern, text)
+    for pattern in quote_patterns:
+        quote = re.search(pattern, text)
+        if quote is not None:
+            current_pattern = pattern
+            break
+
     if quote is not None:
         quote = quote.group()
-        text = re.sub(quote_pattern, '\n', text)
+        text = re.sub(current_pattern, '\n', text)
         has_quote = 0
         for pattern in datetime_patterns:
             datetime = re.search(pattern[0], text)
             if datetime is not None:
                 quote = datetime.group() + quote
             text = re.sub(pattern[0], pattern[1], text)
-
 
     else:
         has_quote = 1

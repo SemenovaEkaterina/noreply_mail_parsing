@@ -167,7 +167,7 @@ class Command(BaseCommand):
         max_id = os.environ.get('MAX_ID', 1000000)
 
         max_count = os.environ.get('MAX_COUNT', 1000)
-        count = 0
+        count = 1
 
         for i in message_ids:
 
@@ -367,10 +367,10 @@ class Command(BaseCommand):
                                         decoded_part = payload.decode()
                                 else:
                                     try:
-                                        decoded_part = payload.decode()
+                                        payload = payload.decode()
                                     except:
                                         pass
-                                    decoded_part = str(payload)
+                                    decoded_part = str()
 
                                 if decoded_part is None:
                                     continue
@@ -459,7 +459,7 @@ class Command(BaseCommand):
 
                 try:
                     original = message.__str__()
-                except KeyError:
+                except:
                     try:
                         original = message.as_bytes().decode(encoding=message.get_content_charset())
                     except:
@@ -469,9 +469,9 @@ class Command(BaseCommand):
                             try:
                                 mail.store(i, '-FLAGS', '\\SEEN')
                             except:
+                                errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to decode original ' + str(
+                                        msg_num) + '\n')
                                 sys.exit(1)
-                                errors_file.write(
-                                    str(datetime.now()) + ' ' + 'ERROR: failed to decode original ' + str(msg_num) + '\n')
                             continue
 
                 message_object = Message(msg_from=message_from,
@@ -488,12 +488,19 @@ class Command(BaseCommand):
                         charset = part.get_content_charset(failobj=None)
 
                         if charset is None:
+                            try:
+                                payload = payload.decode()
+                            except:
+                                pass
                             decoded_part = str(payload)
                         else:
                             try:
                                 decoded_part = payload.decode(str(charset), "ignore")
                             except LookupError:
-                                decoded_part = payload.decode()
+                                try:
+                                    decoded_part = payload.decode()
+                                except:
+                                    decoded_part = payload
 
                         header_content_disposition = header_parser.header_parse(part, 'Content-Disposition')
 
@@ -521,7 +528,7 @@ class Command(BaseCommand):
                                         file_format = ''
                                     file_name = '1' + file_format
 
-                            message_object.save()
+
                             try:
                                 message_object.save()
                             except:
@@ -578,7 +585,7 @@ class Command(BaseCommand):
                                         signal.alarm(0)
                                     except Exception:
                                         errors_file.write(
-                                            str(datetime.now()) + ' ' + 'ERROR: plain parse time out ' + str(
+                                            str(datetime.now()) + ' ' + 'ERROR: html parse time out ' + str(
                                                 msg_num) + '\n')
                                         continue
                             except TypeError:
@@ -621,8 +628,6 @@ class Command(BaseCommand):
                         sys.exit(1)
                     continue
 
-                # print('OK: ' + str(msg_num))
-
                 if parsed_html is None:
                     if parsed_plain is not None:
 
@@ -656,6 +661,8 @@ class Command(BaseCommand):
                         except:
                             sys.exit(1)
                         continue
+                # print('OK: ' + str(msg_num))
+                # mail.store(i, '-FLAGS', '\\SEEN')
             except SystemExit:
                 errors_file.write(str(datetime.now()) + ' ' + 'ERROR: failed to mark unseen' + '\n')
                 errors_file.close()
